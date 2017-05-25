@@ -55,22 +55,8 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         super().__init__(*args, **kwargs)
 
     def _compile_context(self, labels=True):
-        """When the statement is compiled, run add_auth_filters."""
-        # WARNING: This is in the display path (via __str__); if you are debugging
-        #  with pycharm and hit a breakpoint, this code will silently execute,
-        #  potentially causing filters to be added twice. This should have no affect
-        #  on the results.
-        if self._effective_user is not None:
-            entities = {}
-            # find/eliminate duplicates
-            for col in self.column_descriptions:
-                entities[col['entity']] = True
-            # add_auth_filters
-            for entity in entities:
-                if isinstance(entity, sqlalchemy.ext.declarative.api.DeclarativeMeta):
-                    self = col['entity'].add_auth_filters(self, self._effective_user)
-
-        return super()._compile_context(labels)
+        filtered = self._add_auth_filters()
+        return super(self.__class__, filtered)._compile_context(labels)
 
     def _execute_and_instances(self, querycontext):
         instances_generator = super()._execute_and_instances(querycontext)
@@ -83,6 +69,29 @@ class AuthQuery(sqlalchemy.orm.query.Query):
             except AttributeError:
                 pass
             yield row
+
+    def update(self, *args, **kwargs):
+        #TODO: verify that protected attributes aren't modified
+        filtered = self._add_auth_filters()
+        return super(self.__class__, filtered).update(*args, **kwargs)
+
+    def _add_auth_filters(self):
+        # NOTICE: This is in the display path (via __str__?); if you are debugging
+        #  with pycharm and hit a breakpoint, this code will silently execute,
+        #  potentially causing filters to be added twice. This should have no affect
+        #  on the results.
+        filtered = self
+        if filtered._effective_user is not None:
+            entities = {}
+            # find/eliminate duplicates
+            for col in filtered.column_descriptions:
+                entities[col['entity']] = True
+            # add_auth_filters
+            for entity in entities:
+                if isinstance(entity, sqlalchemy.ext.declarative.api.DeclarativeMeta):
+                    filtered = col['entity'].add_auth_filters(filtered, filtered._effective_user)
+
+        return filtered
 
 
 class _AuthBase:
@@ -160,7 +169,7 @@ class AuthBase(_AuthBase):
     def _blocked_read_attributes(self, effective_user):
         """
         Override this method to block read access to attributes, but use 
-        the get_ methods for access.
+        the get_* methods for access.
 
         Only called if effective_user != None.
         """
@@ -169,7 +178,7 @@ class AuthBase(_AuthBase):
     def _blocked_write_attributes(self, effective_user):
         """
         Override this method to block write access to attributes, but use 
-        the get_ methods for access.
+        the get_* methods for access.
 
         Only called if effective_user != None.
         """

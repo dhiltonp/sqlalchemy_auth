@@ -176,40 +176,40 @@ class TestAuthBaseFilters:
     def test_bypass(self):
         self.Session.configure(effective_user=None)
         session = self.Session()
-        result = session.query(self.Data)
-        assert(result.count() == 6)
+        query = session.query(self.Data)
+        assert(query.count() == 6)
 
     def test_full_object(self):
         for i in range(1, 4):
             self.Session.configure(effective_user=i)
             session = self.Session()
-            result = session.query(self.Data)
-            assert (result.count() == i)
+            query = session.query(self.Data)
+            assert (query.count() == i)
 
     def test_partial_object(self):
         for i in range(1, 4):
             self.Session.configure(effective_user=i)
             session = self.Session()
-            result = session.query(self.Data.data)
-            assert (itercount(result) == i)
-            assert (result.count() == i)
+            query = session.query(self.Data.data)
+            assert (itercount(query) == i)
+            assert (query.count() == i)
 
     def test_two_partial_objects(self):
         for i in range(1, 4):
             self.Session.configure(effective_user=i)
             session = self.Session()
-            result = session.query(self.Data.data, self.Data.id)
-            assert (itercount(result) == i)
-            assert (result.count() == i)
+            query = session.query(self.Data.data, self.Data.id)
+            assert (itercount(query) == i)
+            assert (query.count() == i)
 
     def test_mutation(self):
         for i in range(1, 4):
             self.Session.configure(effective_user=i)
             session = self.Session()
-            result = session.query(self.Data.data)
-            statement1 = str(result.statement)
-            assert (itercount(result) == i)
-            statement2 = str(result.statement)
+            query = session.query(self.Data.data)
+            statement1 = str(query.statement)
+            assert (itercount(query) == i)
+            statement2 = str(query.statement)
             assert (statement1 == statement2)
 
     def test_alternate_syntax(self):
@@ -218,6 +218,47 @@ class TestAuthBaseFilters:
         for i in range(1, 4):
             query = sqlalchemy_auth.AuthQuery(self.Data, session=self.Session(), effective_user=i)
             assert (itercount(query) == i)
+
+    def test_effective_user_change(self):
+        # Session level:
+        for i in range(1, 4):
+            self.Session.configure(effective_user=i)
+            session = self.Session()
+            query = session.query(self.Data.data)
+            assert (itercount(query) == i)
+
+        # session level:
+        self.Session.configure()
+        session = self.Session()
+        for i in range(1, 4):
+            session._effective_user = i
+            query = session.query(self.Data.data)
+            assert (itercount(query) == i)
+
+        # query level:
+        self.Session.configure()
+        session = self.Session()
+        query = session.query(self.Data.data)
+        for i in range(1, 4):
+            query._effective_user = i
+            assert (itercount(query) == i)
+
+    def test_update(self):
+        self.Session.configure(effective_user=None)
+        session = self.Session()
+        # B->D
+        bvals = session.query(self.Data.data).filter(self.Data.data == "B")
+        assert(bvals.count()==2)
+        bvals._effective_user=2
+        assert (bvals.count() == 1)
+        changed = bvals.update({self.Data.data:"D"})
+        assert (changed == 1)
+        bvals._effective_user = None
+        assert (bvals.count() == 1)
+
+        # D->B
+        changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data:"B"})
+        assert(changed == 1)
 
 
 def itercount(query):
