@@ -43,19 +43,15 @@ class AuthSession(sqlalchemy.orm.session.Session):
 
     def query(self, *args, **kwargs):
         # allow AuthQuery to know which user is doing the lookup
-        #  we're using kwargs because of the convoluted path SQLAlchemy
-        #  takes to instantiate a query.
-        kwargs["effective_user"] = self._effective_user
-        return super().query(*args, **kwargs)
+        return super().query(*args, effective_user=self._effective_user, **kwargs)
 
 
 class AuthQuery(sqlalchemy.orm.query.Query):
     """
     AuthQuery provides a mechanism for returned objects to know which user looked them up.
     """
-    def __init__(self, *args, **kwargs):
-        # parent class barfs on extra parameters, take what we need and clean up.
-        self._effective_user = kwargs.pop("effective_user")
+    def __init__(self, *args, effective_user=None, **kwargs):
+        self._effective_user = effective_user
         super().__init__(*args, **kwargs)
 
     def _compile_context(self, labels=True):

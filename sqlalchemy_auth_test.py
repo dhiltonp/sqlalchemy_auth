@@ -213,6 +213,8 @@ class TestAuthBaseFilters:
             assert (statement1 == statement2)
 
     def test_alternate_syntax(self):
+        query = sqlalchemy_auth.AuthQuery(self.Data, session=self.Session())
+        assert (query.count() == 6)
         for i in range(1, 4):
             query = sqlalchemy_auth.AuthQuery(self.Data, session=self.Session(), effective_user=i)
             assert (itercount(query) == i)
