@@ -191,6 +191,7 @@ class TestAuthBaseFilters:
             self.Session.configure(effective_user=i)
             session = self.Session()
             result = session.query(self.Data.data)
+            assert (itercount(result) == i)
             assert (result.count() == i)
 
     def test_two_partial_objects(self):
@@ -198,8 +199,25 @@ class TestAuthBaseFilters:
             self.Session.configure(effective_user=i)
             session = self.Session()
             result = session.query(self.Data.data, self.Data.id)
+            assert (itercount(result) == i)
             assert (result.count() == i)
 
+    def test_mutation(self):
+        for i in range(1, 4):
+            self.Session.configure(effective_user=i)
+            session = self.Session()
+            result = session.query(self.Data.data)
+            statement1 = str(result.statement)
+            assert (itercount(result) == i)
+            statement2 = str(result.statement)
+            assert (statement1 == statement2)
+
+
+def itercount(query):
+    count = 0
+    for item in query.all():
+        count += 1
+    return count
 
 # TODO: test more complex queries (Base.attr, Base2.attr):
 #  grep "[^a-zA-Z_]query(" * -r | grep -v "query([a-zA-Z_.]*)" | grep -v omni | less

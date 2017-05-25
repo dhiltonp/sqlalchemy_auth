@@ -7,8 +7,9 @@ via 2 mechanisms.
 2. All full object results can selectively block attribute access
 
 Both these mechanisms rely on an "_effective_user" parameter, set in the 
-AuthSession. This _effective_user is passed to add_auth_filters, 
-blocked_read_attributes and blocked_write_attributes.
+AuthSession and automatically propagated to AuthQuery via "query". This
+_effective_user is passed to add_auth_filters, blocked_read_attributes
+and blocked_write_attributes.
 
 _effective_user can be any type. If _effective_user is set to None, all
 authorization is bypassed.
@@ -23,6 +24,7 @@ overriding the defaults set in AuthBase.
 See sqlalchemy_auth_test.py for full examples.
 """
 
+import sqlalchemy
 import sqlalchemy.orm
 import sqlalchemy.orm.attributes
 
@@ -33,11 +35,7 @@ class AuthException(Exception):
 
 class AuthSession(sqlalchemy.orm.session.Session):
     """
-    AuthSession provides authorization via 2 mechanisms.
-    First, all queries can add implicit filters, based on the user.
-    This should be implemented in model class definition's add_auth_filters.
-    Second, AuthSession passes in the user to the query constructor,
-    providing a mechanism for returned objects to know which user asked for them.
+    AuthSession constructs all queries with the effective_user.
     """
     def __init__(self, effective_user=None, *args, **kwargs):
         self._effective_user = effective_user
@@ -48,16 +46,7 @@ class AuthSession(sqlalchemy.orm.session.Session):
         #  we're using kwargs because of the convoluted path SQLAlchemy
         #  takes to instantiate a query.
         kwargs["effective_user"] = self._effective_user
-        q = super().query(*args, **kwargs)
-        # Add filters for all classes listed in args
-        if self._effective_user is not None:
-            for arg in args:
-                # is this a complex query (Base.attribute)?
-                if isinstance(arg, sqlalchemy.orm.attributes.InstrumentedAttribute):
-                    q = arg.class_.add_auth_filters(q, self._effective_user)
-                else:
-                    q = arg.add_auth_filters(q, self._effective_user)
-        return q
+        return super().query(*args, **kwargs)
 
 
 class AuthQuery(sqlalchemy.orm.query.Query):
@@ -69,12 +58,30 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         self._effective_user = kwargs.pop("effective_user")
         super().__init__(*args, **kwargs)
 
+    def _compile_context(self, labels=True):
+        """When the statement is compiled, run add_auth_filters."""
+        # WARNING: This is in the display path (via __str__); if you are debugging
+        #  with pycharm and hit a breakpoint, this code will silently execute,
+        #  potentially causing filters to be added twice. This should have no affect
+        #  on the results.
+        if self._effective_user is not None:
+            entities = {}
+            # find/eliminate duplicates
+            for col in self.column_descriptions:
+                entities[col['entity']] = True
+            # add_auth_filters
+            for entity in entities:
+                if isinstance(entity, sqlalchemy.ext.declarative.api.DeclarativeMeta):
+                    self = col['entity'].add_auth_filters(self, self._effective_user)
+
+        return super()._compile_context(labels)
+
     def _execute_and_instances(self, querycontext):
         instances_generator = super()._execute_and_instances(querycontext)
         for row in instances_generator:
             # all queries come through here - including ones that don't return model instances
             #  (count, for example).
-            # Assuming it's an uncommon occurrence, we'll try/accept
+            # Assuming it's an uncommon occurrence, we'll try/accept (test this later)
             try:
                 row._effective_user = self._effective_user
             except AttributeError:
