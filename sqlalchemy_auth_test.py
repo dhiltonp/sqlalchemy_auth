@@ -246,17 +246,19 @@ class TestAuthBaseFilters:
     def test_update(self):
         self.Session.configure(effective_user=None)
         session = self.Session()
+
         # B->D
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
-        assert(bvals.count()==2)
+        assert(bvals.count()==2) # there are 2 Bs
         bvals._effective_user=2
-        assert (bvals.count() == 1)
+        assert (bvals.count() == 1) # one owned by user 2
         changed = bvals.update({self.Data.data:"D"})
-        assert (changed == 1)
+        assert (changed == 1) # the other is not changed
         bvals._effective_user = None
         assert (bvals.count() == 1)
 
         # D->B
+        # undo the changes we've performed.
         changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data:"B"})
         assert(changed == 1)
 
