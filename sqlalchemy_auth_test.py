@@ -145,7 +145,7 @@ class TestGetAttributes:
         assert("secret" in attrs)
 
 
-# test - auth query filters - one class, two class, join, single attributes
+# test - auth query filters - one class, two class, single attributes
 class TestAuthBaseFilters:
     class Data(Base, sqlalchemy_auth.AuthBase):
         __tablename__ = "data"
@@ -274,3 +274,77 @@ def itercount(query):
 # TODO: test joins:
 # for employer in DBSession.query(Entity).outerjoin(User.__table__, Entity.id == User.id).filter(
 
+
+# test - auth query filters - one class, two class, join, single attributes
+class TestJoin:
+    class Company(Base, sqlalchemy_auth.AuthBase):
+        __tablename__ = "company"
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String)
+
+        def add_auth_filters(query, effective_user):
+            #TODO: query isn't guaranteed to run on Company; it may be User (or vice-versa). How to specify
+            return query.filter_by(id=effective_user.company)
+
+
+    class User(Base, sqlalchemy_auth.AuthBase):
+        __tablename__ = "user"
+
+        id = Column(Integer, primary_key=True)
+        company = Column(Integer)
+        name = Column(String)
+
+        def add_auth_filters(query, effective_user):
+            return query.filter_by(company=effective_user.company)
+
+    engine = create_engine('sqlite:///:memory:', echo=True)
+    Base.metadata.create_all(engine)
+
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session.configure(effective_user=None)
+    session = Session()
+
+    session.add(Company(name="A"))
+    session.add(Company(name="B"))
+    session.add(Company(name="C"))
+
+    session.add(User(company=1, name="a"))
+    session.add(User(company=2, name="a"))
+    session.add(User(company=2, name="b"))
+    session.add(User(company=3, name="a"))
+    session.add(User(company=3, name="b"))
+    session.add(User(company=3, name="c"))
+
+    session.commit()
+
+    user1a = session.query(User).filter(User.company == 1, User.name == "a").one()
+    user2a = session.query(User).filter(User.company == 2, User.name == "a").one()
+
+    def test_state(self):
+        self.Session.configure(effective_user=None)
+        session = self.Session()
+        query = session.query(self.Company)
+        assert(query.count() == 3)
+        query = session.query(self.User)
+        assert(query.count() == 6)
+
+    def test_company_filter(self):
+        self.Session.configure(effective_user=self.user2a)
+        session = self.Session()
+        query = session.query(self.User)
+        assert(query.count() == 2)
+        query = session.query(self.Company)
+        assert(query.count() == 1)
+
+    #def test_join(self):
+        #self.Session.configure(effective_user=None)
+        #session = self.Session()
+        # TODO: join...
+        query = session.query(self.User.name, self.Company.name)
+        for result in query.all():
+            print(result)
+        query = session.query(self.Company.name, self.User.name)
+        for result in query.all():
+            print(result)
+        assert (query.count() == 1)

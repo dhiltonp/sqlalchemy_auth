@@ -89,7 +89,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
             # add_auth_filters
             for entity in entities:
                 if isinstance(entity, sqlalchemy.ext.declarative.api.DeclarativeMeta):
-                    filtered = col['entity'].add_auth_filters(filtered, filtered._effective_user)
+                    filtered = entity.add_auth_filters(filtered, filtered._effective_user)
 
         return filtered
 
