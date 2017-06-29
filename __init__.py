@@ -102,7 +102,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
 
         # find/eliminate duplicates
         for entity in self._entities:
-            class_ = [col['entity'] for col in self.column_descriptions if col['name'] == entity._label_name][0]
+            class_ = [col['entity'] for col in self.column_descriptions if col['expr'] == entity.expr][0]
             if isinstance(class_, DeclarativeMeta):
                 entities[entity] = class_
             else:
