@@ -154,6 +154,7 @@ class TestAuthBaseFilters:
         owner = Column(Integer)
         data = Column(String)
 
+        @staticmethod
         def add_auth_filters(query, _effective_user):
             return query.filter_by(owner=_effective_user)
 
@@ -285,7 +286,7 @@ class TestJoin:
 
         @staticmethod
         def add_auth_filters(query, effective_user):
-            #TODO: query isn't guaranteed to run on Company; it may be User (or vice-versa). How to specifyL
+            #TODO: query isn't guaranteed to run on Company; it may be User (or vice-versa). How to specify?
             return query.filter_by(id=effective_user.company)
 
 
