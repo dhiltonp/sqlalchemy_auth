@@ -270,11 +270,6 @@ def itercount(query):
         count += 1
     return count
 
-# TODO: test more complex queries (Base.attr, Base2.attr):
-#  grep "[^a-zA-Z_]query(" * -r | grep -v "query([a-zA-Z_.]*)" | grep -v omni | less
-# TODO: test joins:
-# for employer in DBSession.query(Entity).outerjoin(User.__table__, Entity.id == User.id).filter(
-
 
 # test - auth query filters - one class, two class, join, single attributes
 class TestJoin:
@@ -288,7 +283,6 @@ class TestJoin:
         def add_auth_filters(query, effective_user):
             return query.filter_by(id=effective_user.company)
 
-
     class User(Base, sqlalchemy_auth.AuthBase):
         __tablename__ = "user"
 
@@ -300,7 +294,7 @@ class TestJoin:
         def add_auth_filters(query, effective_user):
             return query.filter_by(company=effective_user.company)
 
-    engine = create_engine('sqlite:///:memory:', echo=True)
+    engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
@@ -343,10 +337,6 @@ class TestJoin:
         self.Session.configure(effective_user=self.user2a)
         session = self.Session()
         query = session.query(self.User.name, self.Company.name)
-        for result in query.all():
-            print(result)
         assert (query.count() == 2)
         query = session.query(self.Company.name, self.User.name)
-        for result in query.all():
-            print(result)
         assert (query.count() == 2)
