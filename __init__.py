@@ -81,14 +81,17 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         #  potentially causing filters to be added twice. This should have no affect
         #  on the results.
         filtered = self
+        original_entity = filtered._select_from_entity
         if filtered._effective_user is not None:
             entities = self._lookup_entities()
             # add_auth_filters
             for entity in entities:
-                filtered._primary_entity = entity
+                # setting _select_from_entity allows query(id=...) to work inside of
+                #  add_auth_filters when doing a join
+                filtered._select_from_entity = entity
                 filtered = entities[entity].add_auth_filters(filtered, filtered._effective_user)
 
-        filtered._primary_entity = None
+        filtered._select_from_entity = original_entity
         return filtered
 
     def _lookup_entities(self):
@@ -104,7 +107,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         for entity in self._entities:
             class_ = [col['entity'] for col in self.column_descriptions if col['expr'] == entity.expr][0]
             if isinstance(class_, DeclarativeMeta):
-                entities[entity] = class_
+                entities[entity.mapper] = class_
             else:
                 # count, uses raw integers and have no base class
                 continue

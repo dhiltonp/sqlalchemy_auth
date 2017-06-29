@@ -286,7 +286,6 @@ class TestJoin:
 
         @staticmethod
         def add_auth_filters(query, effective_user):
-            #TODO: query isn't guaranteed to run on Company; it may be User (or vice-versa). How to specify?
             return query.filter_by(id=effective_user.company)
 
 
@@ -343,11 +342,10 @@ class TestJoin:
     def test_join(self):
         self.Session.configure(effective_user=self.user2a)
         session = self.Session()
-        # TODO: filtering is only working against the first class...
         query = session.query(self.User.name, self.Company.name)
         for result in query.all():
             print(result)
-        #assert (query.count() == 2)
+        assert (query.count() == 2)
         query = session.query(self.Company.name, self.User.name)
         for result in query.all():
             print(result)
