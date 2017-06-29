@@ -283,8 +283,9 @@ class TestJoin:
         id = Column(Integer, primary_key=True)
         name = Column(String)
 
+        @staticmethod
         def add_auth_filters(query, effective_user):
-            #TODO: query isn't guaranteed to run on Company; it may be User (or vice-versa). How to specify
+            #TODO: query isn't guaranteed to run on Company; it may be User (or vice-versa). How to specifyL
             return query.filter_by(id=effective_user.company)
 
 
@@ -295,6 +296,7 @@ class TestJoin:
         company = Column(Integer)
         name = Column(String)
 
+        @staticmethod
         def add_auth_filters(query, effective_user):
             return query.filter_by(company=effective_user.company)
 
@@ -337,14 +339,15 @@ class TestJoin:
         query = session.query(self.Company)
         assert(query.count() == 1)
 
-    #def test_join(self):
-        #self.Session.configure(effective_user=None)
-        #session = self.Session()
-        # TODO: join...
+    def test_join(self):
+        self.Session.configure(effective_user=self.user2a)
+        session = self.Session()
+        # TODO: filtering is only working against the first class...
         query = session.query(self.User.name, self.Company.name)
         for result in query.all():
             print(result)
+        #assert (query.count() == 2)
         query = session.query(self.Company.name, self.User.name)
         for result in query.all():
             print(result)
-        assert (query.count() == 1)
+        assert (query.count() == 2)

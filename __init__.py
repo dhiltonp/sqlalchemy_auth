@@ -82,17 +82,36 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         #  on the results.
         filtered = self
         if filtered._effective_user is not None:
-            entities = {}
-            # find/eliminate duplicates
-            for col in filtered.column_descriptions:
-                entities[col['entity']] = True
+            entities = self._lookup_entities()
             # add_auth_filters
             for entity in entities:
-                if isinstance(entity, sqlalchemy.ext.declarative.api.DeclarativeMeta):
-                    filtered = entity.add_auth_filters(filtered, filtered._effective_user)
+                filtered._primary_entity = entity
+                filtered = entities[entity].add_auth_filters(filtered, filtered._effective_user)
 
+        filtered._primary_entity = None
         return filtered
 
+    def _lookup_entities(self):
+        """returns entities with a defined DeclarativeMeta along with their _MapperEntity"""
+        from sqlalchemy.ext.declarative.api import DeclarativeMeta
+        entities = {}
+
+        if len(self.column_descriptions) != len(self._entities):
+            # gonna have to figure out this case; raise
+            raise Exception("mismatched dict lengths; investigate")
+
+        # find/eliminate duplicates
+        for entity in self._entities:
+            class_ = [col['entity'] for col in self.column_descriptions if col['name'] == entity._label_name][0]
+            if isinstance(class_, DeclarativeMeta):
+                entities[entity] = class_
+            else:
+                # count, uses raw integers and have no base class
+                continue
+                # gonna have to figure out this case; raise
+                raise Exception("unable to determine type")
+
+        return entities
 
 class _AuthBase:
     # make _effective_user exist at all times.
