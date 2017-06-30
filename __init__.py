@@ -23,7 +23,7 @@ overriding the defaults set in AuthBase.
 
 See sqlalchemy_auth_test.py for full examples.
 """
-
+import collections
 import sqlalchemy
 import sqlalchemy.orm
 import sqlalchemy.orm.attributes
@@ -50,6 +50,9 @@ class AuthQuery(sqlalchemy.orm.query.Query):
     """
     AuthQuery provides a mechanism for returned objects to know which user looked them up.
     """
+
+    _Entity = collections.namedtuple('_Entity', ['class_', 'mapper'])
+
     def __init__(self, *args, effective_user=None, **kwargs):
         self._effective_user = effective_user
         super().__init__(*args, **kwargs)
@@ -83,36 +86,44 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         filtered = self
         original_select_from_entity = filtered._select_from_entity
         if filtered._effective_user is not None:
-            entities = self._lookup_entities()
             # add_auth_filters
-            for entity in entities:
+            for entity in self._lookup_entities():
                 # setting _select_from_entity allows query(id=...) to work inside of
                 #  add_auth_filters when doing a join
-                filtered._select_from_entity = entity
-                filtered = entities[entity].add_auth_filters(filtered, filtered._effective_user)
+                filtered._select_from_entity = entity.mapper
+                filtered = entity.class_.add_auth_filters(filtered, filtered._effective_user)
 
         filtered._select_from_entity = original_select_from_entity
         return filtered
 
     def _lookup_entities(self):
-        """returns entities with a defined DeclarativeMeta along with their _MapperEntity"""
+        """returns an _Entity list without duplicate entries, for entities that belong in the
+         object Model (for example: Class inheriting from Base or Class.attribute)"""
         from sqlalchemy.ext.declarative.api import DeclarativeMeta
-        entities = {}
+        found_entities = {}
+        entities = []
 
         if len(self.column_descriptions) != len(self._entities):
             # gonna have to figure out this case; raise
             raise Exception("mismatched dict lengths; investigate")
 
-        # find/eliminate duplicates
+        # find entities, eliminate duplicates
         for entity in self._entities:
+            # already processed?
+            if entity in found_entities:
+                continue
+
+            # add new entity
             class_ = [col['entity'] for col in self.column_descriptions if col['expr'] == entity.expr][0]
             if isinstance(class_, DeclarativeMeta):
-                entities[entity.mapper] = class_
+                entities.append(self._Entity(class_=class_, mapper=entity.mapper))
             else:
                 # count, uses raw integers and have no base class
                 continue
                 # gonna have to figure out this case; raise
                 raise Exception("unable to determine type")
+
+            found_entities[entity] = True
 
         return entities
 
