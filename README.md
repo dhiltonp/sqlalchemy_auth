@@ -1,0 +1,125 @@
+# Overview
+
+sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
+
+1. All mapped classes can add implicit filters (added when `session.query()`
+ is run against the database).
+2. All instances of mapped classes can selectively block attribute access.
+
+Your defined methods are passed an `effective_user` parameter when
+executed, unless set to `None` which bypasses the authorization mechanism.
+
+`effective_user` can be any type and is automatically set for queries and
+mapped class instances on their creation.
+
+# Getting Started
+
+### Session Setup
+
+Create a session factory using the AuthSession and AuthQuery classes:
+
+```python
+Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+```
+
+To activate filtering:
+
+```python
+Session.configure(effective_user=$VARIABLE)
+session = Session()
+```
+
+If `effective_user` is not set, filtering/blocking will not be in effect.
+
+### Implicit Filters
+
+To add implicit filters, define `add_auth_filters`:
+
+```python
+class Data(Base):
+    __tablename__ = "data"
+
+    id = Column(Integer, primary_key=True)
+    owner = Column(Integer)
+    data = Column(String)
+
+    @staticmethod
+    def add_auth_filters(query, effective_user):
+        return query.filter_by(owner=effective_user.id)
+```
+
+### Attribute Blocking
+
+For attribute-level blocking, inherit from the AuthBase class (can also use mixins):
+
+```python
+Base = declarative_base(cls=sqlalchemy_auth.AuthBase)
+
+class AttributeCheck(Base, sqlalchemy_auth.AuthBase):
+    __tablename__ = "attributecheck"
+
+    id = Column(Integer, primary_key=True)
+    owner = Column(String)
+    data = Column(String)
+    secret = Column(String)
+
+    def _blocked_read_attributes(self, effective_user):
+        return ["secret"]
+
+    def _blocked_write_attributes(self, effective_user):
+        return ["id", "owner"]
+```
+
+Four convenience methods are defined:
+`get_read_attributes()`, `get_blocked_read_attributes()` and
+`get_write_attributes()`, `get_blocked_write_attributes()`.
+
+Attribute blocking is only effective for instances of the mapped class.
+
+# Gotchas
+
+### Instantiation
+
+`effective_user` is automatically set for queries and objects at their _instantiation_,
+based on the value of their parent. For example:
+
+```python
+Session.configure(effective_user=None)
+session = Session()
+query = session.query(Data)
+
+def login():
+    ...
+    Session.configure(effective_user=logged_in_user)
+    session = Session()
+
+login()
+results = query.all()
+```
+
+In this example, `results` will not be filtered, and `effective_user` will not be set
+on the returned objects (bypassing all filtering/blocking).
+
+### Attribute Queries
+
+Attribute blocking currently relies on the object result being an instance of the class.
+
+This code would bypass blocks on attributes:
+
+```python
+obj = session.query(Class.attr, Class.blocked_attr).first()
+obj.blocked_attr = "foo"
+```
+
+The query results will have `add_auth_filters` applied, but attribute access will not
+be blocked.
+
+Similarly, `update` currently bypasses attribute blocks:
+
+```python
+query = session.query(Data.blocked).update({Data.blocked: "unchecked overwrite"})
+```
+
+--------------------------
+
+See sqlalchemy_auth_test.py for full examples.

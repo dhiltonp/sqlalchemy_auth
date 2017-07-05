@@ -1,31 +1,5 @@
 #!/usr/bin/python
-"""
-sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access,
-via 2 mechanisms.
-
-1. All model classes can add implicit filters
-2. All full object results can selectively block attribute access
-
-Both these mechanisms rely on an "_effective_user" parameter, set in the 
-AuthSession and automatically propagated to AuthQuery via "query". This
-_effective_user is passed to add_auth_filters, blocked_read_attributes
-and blocked_write_attributes.
-
-_effective_user can be any type. If _effective_user is set to None, all
-authorization is bypassed.
-
-class_ and query_cls should both be passed to sessionmaker:
-
-    sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-
-Your classes can implement add_auth_filters and _blocked_read/write_attributes,
-overriding the defaults set in AuthBase.
-
-See sqlalchemy_auth_test.py for full examples.
-"""
 import collections
-import sqlalchemy
-import sqlalchemy.orm
 import sqlalchemy.orm.attributes
 
 
