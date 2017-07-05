@@ -25,7 +25,7 @@ Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cl
 To activate filtering:
 
 ```python
-Session.configure(effective_user=$VARIABLE)
+Session.configure(effective_user=current_user)
 session = Session()
 ```
 
@@ -55,7 +55,7 @@ For attribute-level blocking, inherit from the AuthBase class (can also use mixi
 ```python
 Base = declarative_base(cls=sqlalchemy_auth.AuthBase)
 
-class AttributeCheck(Base, sqlalchemy_auth.AuthBase):
+class AttributeCheck(Base):
     __tablename__ = "attributecheck"
 
     id = Column(Integer, primary_key=True)
@@ -78,7 +78,7 @@ Attribute blocking is only effective for instances of the mapped class.
 
 # Gotchas
 
-### Instantiation
+### Filtering at Instantiation
 
 `effective_user` is automatically set for queries and objects at their _instantiation_,
 based on the value of their parent. For example:
@@ -91,33 +91,34 @@ query = session.query(Data)
 def login():
     ...
     Session.configure(effective_user=logged_in_user)
+    global session
     session = Session()
 
 login()
 results = query.all()
 ```
 
-In this example, `results` will not be filtered, and `effective_user` will not be set
-on the returned objects (bypassing all filtering/blocking).
+In this example, `results` will not be filtered despite session's `effective_user` being
+set, as `effective_user` was `None` at `query`'s creation. `effective_user` will also be
+set to `None` for all returned objects, bypassing all filtering/blocking.
+
+Technically, assigning `auth*Instance._effective_user` will update filtering on the fly,
+but at this time I view it as a protected variable.
 
 ### Attribute Queries
 
-Attribute blocking currently relies on the object result being an instance of the class.
-
-This code would bypass blocks on attributes:
+Attribute blocking currently relies on the object being an instance of the class.
+In the following example, `add_auth_filters` is applied, but blocks are not:
 
 ```python
 obj = session.query(Class.attr, Class.blocked_attr).first()
 obj.blocked_attr = "foo"
 ```
 
-The query results will have `add_auth_filters` applied, but attribute access will not
-be blocked.
-
 Similarly, `update` currently bypasses attribute blocks:
 
 ```python
-query = session.query(Data.blocked).update({Data.blocked: "unchecked overwrite"})
+query = session.query(Class.blocked).update({Class.blocked: "unchecked overwrite"})
 ```
 
 --------------------------
