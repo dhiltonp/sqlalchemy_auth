@@ -262,6 +262,21 @@ class TestAuthBaseFilters:
         changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data: "B"})
         assert(changed == 1)
 
+    def test_delete(self):
+        self.Session.configure(effective_user=None)
+        session = self.Session()
+
+        bvals = session.query(self.Data.data).filter(self.Data.data == "B")
+        assert (bvals.count() == 2)  # there are 2 Bs
+        changed = bvals.delete()
+        assert changed == 2
+        session.rollback()
+
+        bvals._effective_user = 2
+        assert (bvals.count() == 1)  # one owned by user 2
+        changed = bvals.delete()
+        assert (changed == 1)  # the other is not changed
+        session.rollback()
 
 def itercount(query):
     count = 0
@@ -339,3 +354,21 @@ class TestJoin:
         assert (query.count() == 2)
         query = session.query(self.Company.name, self.User.name)
         assert (query.count() == 2)
+        assert 1 == query.filter(self.User.name == self.user2a.name).count()
+
+    def test_distinct(self):
+        from sqlalchemy import distinct
+        self.Session.configure(effective_user=self.user2a)
+        session = self.Session()
+        query = session.query(self.User.company)
+        assert (query.count() == 2)
+        query = session.query(distinct(self.User.company))
+        assert (query.count() == 1)
+
+    def test_max(self):
+        from sqlalchemy import func
+        self.Session.configure(effective_user=self.user2a)
+        session = self.Session()
+        query = session.query(func.max(self.User.id))
+        assert (query.count() == 1)
+        assert 3 == query.one()[0]

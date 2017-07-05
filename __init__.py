@@ -52,6 +52,10 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         filtered = self._add_auth_filters()
         return super(self.__class__, filtered).update(*args, **kwargs)
 
+    def delete(self, *args, **kwargs):
+        filtered = self._add_auth_filters()
+        return super(self.__class__, filtered).delete(*args, **kwargs)
+
     def _add_auth_filters(self):
         # NOTICE: This is in the display path (via __str__?); if you are debugging
         #  with pycharm and hit a breakpoint, this code will silently execute,
