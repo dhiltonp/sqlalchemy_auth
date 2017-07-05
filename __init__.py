@@ -48,7 +48,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
             yield row
 
     def update(self, *args, **kwargs):
-        #TODO: verify that protected attributes aren't modified
+        # TODO: assert that protected attributes aren't modified?
         filtered = self._add_auth_filters()
         return super(self.__class__, filtered).update(*args, **kwargs)
 
@@ -101,6 +101,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
 
         return entities
 
+
 class _AuthBase:
     # make _effective_user exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
@@ -131,7 +132,7 @@ class _AuthBase:
 
         # bypass our check if we're recursive
         # this allows _blocked_read_attributes to use self.*
-        if super().__getattribute__("_checking_authorization") == True:
+        if super().__getattribute__("_checking_authorization"):
             return super().__getattribute__(name)
 
         # look up blocked attributes
@@ -190,6 +191,3 @@ class AuthBase(_AuthBase):
         Only called if effective_user != None.
         """
         return []
-
-
-

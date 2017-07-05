@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String
 
 
 Base = declarative_base(cls=sqlalchemy_auth.AuthBase)
@@ -28,7 +28,6 @@ class TestAuthBaseAttributes:
 
         def _blocked_write_attributes(self, effective_user):
             return ["blocked_write", "blocked_both"]
-
 
     def create_blocked_data(self):
         engine = create_engine('sqlite:///:memory:')#, echo=True)
@@ -250,17 +249,17 @@ class TestAuthBaseFilters:
 
         # B->D
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
-        assert(bvals.count()==2) # there are 2 Bs
-        bvals._effective_user=2
-        assert (bvals.count() == 1) # one owned by user 2
-        changed = bvals.update({self.Data.data:"D"})
-        assert (changed == 1) # the other is not changed
+        assert(bvals.count() == 2)  # there are 2 Bs
+        bvals._effective_user = 2
+        assert (bvals.count() == 1)  # one owned by user 2
+        changed = bvals.update({self.Data.data: "D"})
+        assert (changed == 1)  # the other is not changed
         bvals._effective_user = None
         assert (bvals.count() == 1)
 
         # D->B
         # undo the changes we've performed.
-        changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data:"B"})
+        changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data: "B"})
         assert(changed == 1)
 
 
