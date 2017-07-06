@@ -16,7 +16,7 @@ mapped class instances on their creation.
 
 ### Session Setup
 
-Create a session factory using the AuthSession and AuthQuery classes:
+Create a Session class using the AuthSession and AuthQuery classes:
 
 ```python
 Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
@@ -88,13 +88,9 @@ Session.configure(effective_user=None)
 session = Session()
 query = session.query(Data)
 
-def login():
-    ...
-    Session.configure(effective_user=logged_in_user)
-    global session
-    session = Session()
+Session.configure(effective_user=user)
+session = Session()
 
-login()
 results = query.all()
 ```
 
@@ -102,12 +98,12 @@ In this example, `results` will not be filtered despite session's `effective_use
 set, as `effective_user` was `None` at `query`'s creation. `effective_user` will also be
 set to `None` for all returned objects, bypassing all filtering/blocking.
 
-Technically, assigning `auth*Instance._effective_user` will update filtering on the fly,
+Technically, assigning `authClassInstance._effective_user` will update filtering on the fly,
 but at this time I view it as a protected variable.
 
-### Attribute Queries
+### Attribute Blocking Limitations
 
-Attribute blocking currently relies on the object being an instance of the class.
+Attribute blocking relies on the object being an instance of the class with blocks.
 In the following example, `add_auth_filters` is applied, but blocks are not:
 
 ```python
@@ -115,7 +111,7 @@ obj = session.query(Class.attr, Class.blocked_attr).first()
 obj.blocked_attr = "foo"
 ```
 
-Similarly, `update` currently bypasses attribute blocks:
+Similarly, `update` bypasses attribute blocks:
 
 ```python
 query = session.query(Class.blocked).update({Class.blocked: "unchecked overwrite"})
