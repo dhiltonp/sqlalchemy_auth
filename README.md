@@ -2,12 +2,17 @@
 
 sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
 
+It is designed for easy integration into existing projects, allowing a project
+to centralize authorization logic over time. It is also easy to bypass when
+necessary.
+
 1. All mapped classes can add implicit filters (added when `session.query()`
  is run against the database).
 2. All instances of mapped classes can selectively block attribute access.
 
 Your defined methods are passed an `effective_user` parameter when
-executed, unless set to `None` which bypasses the authorization mechanism.
+executed, unless set to `ALLOW`, which bypasses all authorization mechanisms,
+or `DENY`, which blocks all access.
 
 `effective_user` can be any type and is automatically set for queries and
 mapped class instances on their creation.
@@ -19,7 +24,7 @@ mapped class instances on their creation.
 Create a Session class using the AuthSession and AuthQuery classes:
 
 ```python
-Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
 ```
 
 To activate filtering:
@@ -29,7 +34,7 @@ Session.configure(effective_user=current_user)
 session = Session()
 ```
 
-If `effective_user` is not set, filtering/blocking will not be in effect.
+By default `effective_user` is set to `ALLOW`, so filtering/blocking will not be in effect.
 
 ### Implicit Filters
 
@@ -50,10 +55,11 @@ class Data(Base):
 
 ### Attribute Blocking
 
-For attribute-level blocking, inherit from the AuthBase class (can also use mixins):
+For attribute-level blocking, inherit from the AuthBase class (you can also use
+mixins instead of `declarative_base(cls=AuthBase)`):
 
 ```python
-Base = declarative_base(cls=sqlalchemy_auth.AuthBase)
+Base = declarative_base(cls=AuthBase)
 
 class AttributeCheck(Base):
     __tablename__ = "attributecheck"
@@ -72,7 +78,8 @@ class AttributeCheck(Base):
 
 Four convenience methods are defined:
 `get_read_attributes()`, `get_blocked_read_attributes()` and
-`get_write_attributes()`, `get_blocked_write_attributes()`.
+`get_write_attributes()`, `get_blocked_write_attributes()`. Only public
+attributes are returned.
 
 Attribute blocking is only effective for instances of the mapped class.
 
@@ -84,7 +91,7 @@ Attribute blocking is only effective for instances of the mapped class.
 based on the value of their parent. For example:
 
 ```python
-Session.configure(effective_user=None)
+Session.configure(effective_user=ALLOW)
 session = Session()
 query = session.query(Data)
 
@@ -95,8 +102,8 @@ results = query.all()
 ```
 
 In this example, `results` will not be filtered despite session's `effective_user` being
-set, as `effective_user` was `None` at `query`'s creation. `effective_user` will also be
-set to `None` for all returned objects, bypassing all filtering/blocking.
+set, as `effective_user` was `ALLOW` at `query`'s creation. `effective_user` will also be
+set to `ALLOW` for all returned objects, bypassing all filtering/blocking.
 
 Technically, assigning `authClassInstance._effective_user` will update filtering on the fly,
 but at this time I view it as a protected variable.

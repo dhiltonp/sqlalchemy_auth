@@ -1,6 +1,16 @@
 #!/usr/bin/python
 import collections
+from enum import Enum
+
 import sqlalchemy.orm.attributes
+
+
+class _Access(Enum):
+    Allow = "Allow"
+    Deny = "Deny"
+
+ALLOW = _Access.Allow
+DENY = _Access.Deny
 
 
 class AuthException(Exception):
@@ -11,7 +21,7 @@ class AuthSession(sqlalchemy.orm.session.Session):
     """
     AuthSession constructs all queries with the effective_user.
     """
-    def __init__(self, effective_user=None, *args, **kwargs):
+    def __init__(self, effective_user=ALLOW, *args, **kwargs):
         self._effective_user = effective_user
         super().__init__(*args, **kwargs)
 
@@ -27,7 +37,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
 
     _Entity = collections.namedtuple('_Entity', ['class_', 'mapper'])
 
-    def __init__(self, *args, effective_user=None, **kwargs):
+    def __init__(self, *args, effective_user=ALLOW, **kwargs):
         self._effective_user = effective_user
         super().__init__(*args, **kwargs)
 
@@ -61,9 +71,12 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         #  with pycharm and hit a breakpoint, this code will silently execute,
         #  potentially causing filters to be added twice. This should have no affect
         #  on the results.
+        if self._effective_user is DENY:
+            raise AuthException("Access is denied")
+
         filtered = self
         original_select_from_entity = filtered._select_from_entity
-        if filtered._effective_user is not None:
+        if filtered._effective_user is not ALLOW:
             # add_auth_filters
             for entity in self._lookup_entities():
                 # setting _select_from_entity allows query(id=...) to work inside of
@@ -110,16 +123,16 @@ class _AuthBase:
     # make _effective_user exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
     # We set it to simplify the logic in __getattribute__
-    _effective_user = None
+    _effective_user = ALLOW
     _checking_authorization = False
 
     def get_blocked_read_attributes(self):
-        if self._effective_user is not None:
+        if self._effective_user is not ALLOW:
             return self._blocked_read_attributes(self._effective_user)
         return []
 
     def get_blocked_write_attributes(self):
-        if self._effective_user is not None:
+        if self._effective_user is not ALLOW:
             return self._blocked_write_attributes(self._effective_user)
         return []
 
@@ -183,7 +196,7 @@ class AuthBase(_AuthBase):
         Override this method to block read access to attributes, but use 
         the get_* methods for access.
 
-        Only called if effective_user != None.
+        Only called if effective_user != ALLOW.
         """
         return []
 
@@ -192,6 +205,6 @@ class AuthBase(_AuthBase):
         Override this method to block write access to attributes, but use 
         the get_* methods for access.
 
-        Only called if effective_user != None.
+        Only called if effective_user != ALLOW.
         """
         return []
