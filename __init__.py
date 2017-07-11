@@ -19,20 +19,20 @@ class AuthException(Exception):
 
 class AuthSession(sqlalchemy.orm.session.Session):
     """
-    AuthSession constructs all queries with the effective_user.
+    AuthSession constructs all queries with the set user.
     """
-    def __init__(self, effective_user=ALLOW, *args, **kwargs):
-        self._effective_user = effective_user
+    def __init__(self, user=ALLOW, *args, **kwargs):
+        self._sqlalchemy_auth_user = user
         super().__init__(*args, **kwargs)
 
     def query(self, *args, **kwargs):
         """
-        Operates like a regular sqlalchemy query, with an optional 'effective_user' argument
-        that temporarily overrides the effective_user set at creation.
+        Operates like a regular sqlalchemy query, with an optional 'user' argument
+        that temporarily overrides the user set at creation.
         """
-        effective_user = kwargs.pop('effective_user', self._effective_user)
+        user = kwargs.pop('user', self._sqlalchemy_auth_user)
         # allow AuthQuery to know which user is doing the lookup
-        return super().query(*args, effective_user=effective_user, **kwargs)
+        return super().query(*args, user=user, **kwargs)
 
 
 class AuthQuery(sqlalchemy.orm.query.Query):
@@ -42,8 +42,8 @@ class AuthQuery(sqlalchemy.orm.query.Query):
 
     _Entity = collections.namedtuple('_Entity', ['class_', 'mapper'])
 
-    def __init__(self, *args, effective_user=ALLOW, **kwargs):
-        self._effective_user = effective_user
+    def __init__(self, *args, user=ALLOW, **kwargs):
+        self._sqlalchemy_auth_user = user
         super().__init__(*args, **kwargs)
 
     def _compile_context(self, labels=True):
@@ -57,7 +57,7 @@ class AuthQuery(sqlalchemy.orm.query.Query):
             #  (count, for example).
             # Assuming it's an uncommon occurrence, we'll try/accept (test this later)
             try:
-                row._effective_user = self._effective_user
+                row._sqlalchemy_auth_user = self._sqlalchemy_auth_user
             except AttributeError:
                 pass
             yield row
@@ -76,18 +76,18 @@ class AuthQuery(sqlalchemy.orm.query.Query):
         #  with pycharm and hit a breakpoint, this code will silently execute,
         #  potentially causing filters to be added twice. This should have no affect
         #  on the results.
-        if self._effective_user is DENY:
+        if self._sqlalchemy_auth_user is DENY:
             raise AuthException("Access is denied")
 
         filtered = self
         original_select_from_entity = filtered._select_from_entity
-        if filtered._effective_user is not ALLOW:
+        if filtered._sqlalchemy_auth_user is not ALLOW:
             # add_auth_filters
             for entity in self._lookup_entities():
                 # setting _select_from_entity allows query(id=...) to work inside of
                 #  add_auth_filters when doing a join
                 filtered._select_from_entity = entity.mapper
-                filtered = entity.class_.add_auth_filters(filtered, filtered._effective_user)
+                filtered = entity.class_.add_auth_filters(filtered, filtered._sqlalchemy_auth_user)
 
         filtered._select_from_entity = original_select_from_entity
         return filtered
@@ -125,20 +125,20 @@ class AuthQuery(sqlalchemy.orm.query.Query):
 
 
 class _AuthBase:
-    # make _effective_user exist at all times.
+    # make _sqlalchemy_auth_user exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
     # We set it to simplify the logic in __getattribute__
-    _effective_user = ALLOW
+    _sqlalchemy_auth_user = ALLOW
     _checking_authorization = False
 
     def get_blocked_read_attributes(self):
-        if self._effective_user is not ALLOW:
-            return self._blocked_read_attributes(self._effective_user)
+        if self._sqlalchemy_auth_user is not ALLOW:
+            return self._blocked_read_attributes(self._sqlalchemy_auth_user)
         return []
 
     def get_blocked_write_attributes(self):
-        if self._effective_user is not ALLOW:
-            return self._blocked_write_attributes(self._effective_user)
+        if self._sqlalchemy_auth_user is not ALLOW:
+            return self._blocked_write_attributes(self._sqlalchemy_auth_user)
         return []
 
     def get_read_attributes(self):
@@ -164,12 +164,12 @@ class _AuthBase:
 
         # take action
         if name in blocked:
-            raise AuthException('{} may not access {} on {}'.format(self._effective_user, name, self.__class__))
+            raise AuthException('{} may not access {} on {}'.format(self._sqlalchemy_auth_user, name, self.__class__))
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
         if name in self.get_blocked_write_attributes():
-            raise AuthException('{} may not access {} on {}'.format(self._effective_user, name, self.__class__))
+            raise AuthException('{} may not access {} on {}'.format(self._sqlalchemy_auth_user, name, self.__class__))
         return super().__setattr__(name, value)
 
 
@@ -189,27 +189,27 @@ class AuthBase(_AuthBase):
     """
 
     @staticmethod
-    def add_auth_filters(query, effective_user):
+    def add_auth_filters(query, user):
         """
         Override this to add implicit filters to a query, before any additional
         filters are added.
         """
         return query
 
-    def _blocked_read_attributes(self, effective_user):
+    def _blocked_read_attributes(self, user):
         """
         Override this method to block read access to attributes, but use 
         the get_* methods for access.
 
-        Only called if effective_user != ALLOW.
+        Only called if user != ALLOW.
         """
         return []
 
-    def _blocked_write_attributes(self, effective_user):
+    def _blocked_write_attributes(self, user):
         """
         Override this method to block write access to attributes, but use 
         the get_* methods for access.
 
-        Only called if effective_user != ALLOW.
+        Only called if user != ALLOW.
         """
         return []
