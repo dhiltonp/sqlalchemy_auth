@@ -181,6 +181,14 @@ class TestAuthBaseFilters:
         query = session.query(self.Data)
         assert(query.count() == 6)
 
+    def test_quick_bypass(self):
+        self.Session.configure(effective_user=1)
+        session = self.Session()
+        query = session.query(self.Data)
+        assert(query.count() == 1)
+        query = session.query(self.Data, effective_user=sqlalchemy_auth.ALLOW)
+        assert(query.count() == 6)
+
     def test_full_object(self):
         for i in range(1, 4):
             self.Session.configure(effective_user=i)

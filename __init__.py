@@ -26,8 +26,13 @@ class AuthSession(sqlalchemy.orm.session.Session):
         super().__init__(*args, **kwargs)
 
     def query(self, *args, **kwargs):
+        """
+        Operates like a regular sqlalchemy query, with an optional 'effective_user' argument
+        that temporarily overrides the effective_user set at creation.
+        """
+        effective_user = kwargs.pop('effective_user', self._effective_user)
         # allow AuthQuery to know which user is doing the lookup
-        return super().query(*args, effective_user=self._effective_user, **kwargs)
+        return super().query(*args, effective_user=effective_user, **kwargs)
 
 
 class AuthQuery(sqlalchemy.orm.query.Query):
