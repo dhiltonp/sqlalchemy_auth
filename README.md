@@ -2,18 +2,11 @@
 
 sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
 
-It is easy to integrate, allowing you
-to centralize common authorization logic. It is also easy to bypass.
+It is easy to use, and easy to bypass. 
 
-1. All mapped classes can add implicit filters (added when `session.query()`
- is run against the database).
-2. All instances of mapped classes can selectively block attribute access.
-
-Your defined methods are passed a `user` parameter when the query is
-executed, unless user is set to `ALLOW`, which bypasses all authorization mechanisms,
-or `DENY`, which blocks all access.
-
-`user` can be any type.
+1. You set and receive a `user` parameter. 
+2. All mapped classes can add implicit filters.
+3. All mapped classes can selectively block attribute access.
 
 # Getting Started
 
@@ -25,18 +18,18 @@ Create a Session class using the AuthSession and AuthQuery classes:
 Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
 ```
 
-To activate filtering:
+By default `user` is set to `ALLOW`, bypassing all filtering/blocking.
+
+Activate filtering/blocking:
 
 ```python
 Session.configure(user=current_user)
 session = Session()
 ```
 
-By default `user` is set to `ALLOW`, so filtering/blocking will not be in effect.
+### Filters
 
-### Implicit Filters
-
-To add implicit filters, define `add_auth_filters`:
+To add filters, define `add_auth_filters`:
 
 ```python
 class Data(Base):
@@ -53,7 +46,7 @@ class Data(Base):
 
 ### Attribute Blocking
 
-For attribute-level blocking, inherit from the AuthBase class (you can also use
+For attribute blocking, inherit from the AuthBase class (you can also use
 mixins instead of `declarative_base(cls=AuthBase)`):
 
 ```python
@@ -83,10 +76,9 @@ Attribute blocking is only effective for instances of the mapped class.
 
 ### Temporarily Changing User
 
-`query` accepts an optional `user` parameter.
 
 ```python
-Session.configure(user=current_user)
+Session.configure(user=user)
 session = Session()
 filtered_query1 = session.query(Data)
 overridden_query = session.query(Data, user=ALLOW)
