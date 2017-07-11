@@ -16,7 +16,7 @@ def create_db():
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
-    Session.configure(effective_user=None)
+    Session.configure(user=sqlalchemy_auth.ALLOW)
 
     return Session
 
@@ -36,14 +36,14 @@ class Data(Base):
     data = Column(String)
 
     @staticmethod
-    def add_auth_filters(query, effective_user):
-        return query.filter_by(owner=effective_user)
+    def add_auth_filters(query, user):
+        return query.filter_by(owner=user)
 
-    def blocked_read_attributes(self, effective_user):
-        return self.blocked_write_attributes(effective_user)
+    def blocked_read_attributes(self, user):
+        return self.blocked_write_attributes(user)
 
-    def blocked_write_attributes(self, effective_user):
-        if self.owner != effective_user:
+    def blocked_write_attributes(self, user):
+        if self.owner != user:
             return ["data"]
         return []
 
@@ -71,10 +71,10 @@ Session = create_db()
 add_data(Session())
 
 
-Session.configure(effective_user=None)
+Session.configure(user=sqlalchemy_auth.ALLOW)
 session = Session()
 all_data = session.query(Data).all()
 print(len(all_data))
 
-all_data[0]._effective_user = 2
+all_data[0]._sqlalchemy_auth_user = 2
 print(all_data[0].data)

@@ -50,8 +50,8 @@ class TestAuthBaseAttributes:
         val = blocked_data.allowed_data
         blocked_data.allowed_data = val
 
-        # _effective_user is set, blocks active
-        blocked_data._effective_user = 1
+        # _sqlalchemy_auth_user is set, blocks active
+        blocked_data._sqlalchemy_auth_user = 1
         val = blocked_data.allowed_data
         blocked_data.allowed_data = val
 
@@ -105,10 +105,10 @@ class TestGetAttributes:
         data = Column(String)
         secret = Column(String)
 
-        def _blocked_read_attributes(self, _effective_user):
+        def _blocked_read_attributes(self, user):
             return ["secret"]
 
-        def _blocked_write_attributes(self, _effective_user):
+        def _blocked_write_attributes(self, user):
             return ["id", "owner"]
 
     def create_attribute_check(self):
