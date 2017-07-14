@@ -33,7 +33,7 @@ class TestAuthBaseAttributes:
         engine = create_engine('sqlite:///:memory:')#, echo=True)
         Base.metadata.create_all(engine)
 
-        Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+        Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth._AuthQuery)
         Session.configure(user=sqlalchemy_auth.ALLOW)
         session = Session()
 
@@ -46,53 +46,53 @@ class TestAuthBaseAttributes:
     def test_allowed(self):
         blocked_data = self.create_blocked_data()
         # ALLOW access
-        blocked_data._sqlalchemy_auth_user = sqlalchemy_auth.ALLOW
+        blocked_data._auth_settings.user = sqlalchemy_auth.ALLOW
         val = blocked_data.allowed_data
         blocked_data.allowed_data = val
 
-        # _sqlalchemy_auth_user is set, blocks active
-        blocked_data._sqlalchemy_auth_user = 1
+        # _auth_settings is set, blocks active
+        blocked_data._auth_settings.user = 1
         val = blocked_data.allowed_data
         blocked_data.allowed_data = val
 
     def test_blocked_read(self):
         blocked_data = self.create_blocked_data()
-        blocked_data._sqlalchemy_auth_user = sqlalchemy_auth.ALLOW
+        blocked_data._auth_settings.user = sqlalchemy_auth.ALLOW
         val = blocked_data.blocked_read
         blocked_data.blocked_read = val
 
-        blocked_data._sqlalchemy_auth_user = 1
+        blocked_data._auth_settings.user = 1
         with pytest.raises(sqlalchemy_auth.AuthException):
             val = blocked_data.blocked_read
         blocked_data.blocked_read = val
 
     def test_blocked_write(self):
         blocked_data = self.create_blocked_data()
-        blocked_data._sqlalchemy_auth_user = sqlalchemy_auth.ALLOW
+        blocked_data._auth_settings.user = sqlalchemy_auth.ALLOW
         val = blocked_data.blocked_write
         blocked_data.blocked_write = val
 
-        blocked_data._sqlalchemy_auth_user = 1
+        blocked_data._auth_settings.user = 1
         val = blocked_data.blocked_write
         with pytest.raises(sqlalchemy_auth.AuthException):
             blocked_data.blocked_write = "value"
 
-        blocked_data._sqlalchemy_auth_user = 1
+        blocked_data._auth_settings.user = 1
         assert(blocked_data.blocked_write != "value")
 
     def test_blocked_both(self):
         blocked_data = self.create_blocked_data()
-        blocked_data._sqlalchemy_auth_user = sqlalchemy_auth.ALLOW
+        blocked_data._auth_settings.user = sqlalchemy_auth.ALLOW
         val = blocked_data.blocked_both
         blocked_data.blocked_both = val
 
-        blocked_data._sqlalchemy_auth_user = 1
+        blocked_data._auth_settings.user = 1
         with pytest.raises(sqlalchemy_auth.AuthException):
             val = blocked_data.blocked_both
         with pytest.raises(sqlalchemy_auth.AuthException):
             blocked_data.blocked_both = "value"
 
-        blocked_data._sqlalchemy_auth_user = sqlalchemy_auth.ALLOW
+        blocked_data._auth_settings.user = sqlalchemy_auth.ALLOW
         assert(blocked_data.blocked_write != "value")
 
 
@@ -115,7 +115,7 @@ class TestGetAttributes:
         engine = create_engine('sqlite:///:memory:')#, echo=True)
         Base.metadata.create_all(engine)
 
-        Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+        Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth._AuthQuery)
         Session.configure(user=1)
         session = Session()
 
@@ -162,7 +162,7 @@ class TestAuthBaseFilters:
     engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
-    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth._AuthQuery)
     Session.configure(user=sqlalchemy_auth.ALLOW)
     session = Session()
 
@@ -180,17 +180,6 @@ class TestAuthBaseFilters:
         query = session.query(self.Data)
         assert(query.count() == 6)
 
-    def test_quick_bypass(self):
-        self.Session.configure(user=1)
-        session = self.Session()
-        query = session.query(self.Data)
-        assert(query.count() == 1)
-        query = session.query(self.Data, user=sqlalchemy_auth.ALLOW)
-        assert(query.count() == 6)
-        # it's temporary
-        query = session.query(self.Data)
-        assert(query.count() == 1)
-
     def test_full_object(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
@@ -201,7 +190,8 @@ class TestAuthBaseFilters:
     def test_partial_object(self):
         session = self.Session()
         for i in range(1, 4):
-            query = session.query(self.Data.data, user=i)
+            session.su(user=i)
+            query = session.query(self.Data.data)
             assert (itercount(query) == i)
             assert (query.count() == i)
 
@@ -223,13 +213,6 @@ class TestAuthBaseFilters:
             statement2 = str(query.statement)
             assert (statement1 == statement2)
 
-    def test_alternate_syntax(self):
-        query = sqlalchemy_auth.AuthQuery(self.Data, session=self.Session())
-        assert (query.count() == 6)
-        for i in range(1, 4):
-            query = sqlalchemy_auth.AuthQuery(self.Data, session=self.Session(), user=i)
-            assert (itercount(query) == i)
-
     def test_user_change(self):
         # Session level:
         for i in range(1, 4):
@@ -242,14 +225,16 @@ class TestAuthBaseFilters:
         self.Session.configure()
         session = self.Session()
         for i in range(1, 4):
-            query = session.query(self.Data.data, user=i)
+            session.su(user=i)
+            query = session.query(self.Data.data)
             assert (itercount(query) == i)
 
         # query level:
         self.Session.configure()
         session = self.Session()
         for i in range(1, 4):
-            query = session.query(self.Data.data, user=i)
+            session.su(user=i)
+            query = session.query(self.Data.data)
             assert (itercount(query) == i)
 
     def test_update(self):
@@ -259,11 +244,11 @@ class TestAuthBaseFilters:
         # B->D
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
         assert(bvals.count() == 2)  # there are 2 Bs
-        bvals._sqlalchemy_auth_user = 2
+        session.su(2)
         assert (bvals.count() == 1)  # one owned by user 2
         changed = bvals.update({self.Data.data: "D"})
         assert (changed == 1)  # the other is not changed
-        bvals._sqlalchemy_auth_user = sqlalchemy_auth.ALLOW
+        session.su(sqlalchemy_auth.ALLOW)
         assert (bvals.count() == 1)
 
         # D->B
@@ -281,13 +266,13 @@ class TestAuthBaseFilters:
         assert changed == 2
         session.rollback()
 
-        bvals._sqlalchemy_auth_user = 2
+        session.su(2)
         assert (bvals.count() == 1)  # one owned by user 2
         changed = bvals.delete()
         assert (changed == 1)  # the other is not changed
         session.rollback()
 
-        session._sqlalchemy_auth_user = sqlalchemy_auth.DENY
+        session.su(sqlalchemy_auth.DENY)
         with pytest.raises(sqlalchemy_auth.AuthException):
             session.query(self.Data).delete()
 
@@ -297,6 +282,29 @@ class TestAuthBaseFilters:
 
         with pytest.raises(sqlalchemy_auth.AuthException):
             session.query(self.Data).all()
+
+    def test_independent_session_user(self):
+        # user is independent of sessions
+        self.Session.configure(user=2)
+        session = self.Session()
+        filter_a = session.query(self.Data).filter(self.Data.data == "A").one()
+
+        self.Session.configure(user=sqlalchemy_auth.ALLOW)
+        session = self.Session()
+        allow_a = session.query(self.Data).filter(self.Data.data == "A", self.Data.owner == 2).one()
+
+        assert filter_a._auth_settings.user == 2
+        assert allow_a._auth_settings.user == sqlalchemy_auth.ALLOW
+
+    def test_consistent_session_user(self):
+        self.Session.configure(user=1)
+        session = self.Session()
+        a = session.query(self.Data).filter(self.Data.data == "A").one()
+        session.su(2)
+        b = session.query(self.Data).filter(self.Data.data == "B").one()
+
+        assert a._auth_settings.user == 2
+        assert b._auth_settings.user == 2
 
 
 def itercount(query):
@@ -332,7 +340,7 @@ class TestJoin:
     engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
-    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth._AuthQuery)
     Session.configure(user=sqlalchemy_auth.ALLOW)
     session = Session()
 

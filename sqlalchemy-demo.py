@@ -15,7 +15,7 @@ def create_db():
 
     Base.metadata.create_all(engine)
 
-    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth._AuthQuery)
     Session.configure(user=sqlalchemy_auth.ALLOW)
 
     return Session

@@ -76,35 +76,34 @@ Attribute blocking is only effective for instances of the mapped class.
 
 ### Temporarily Changing User
 
+ - out of date, will update soon (using `with` contexts+su)
 
 ```python
 Session.configure(user=user)
 session = Session()
 filtered_query1 = session.query(Data)
+session.su(user=ALLOW)
 overridden_query = session.query(Data, user=ALLOW)
 filtered_query2 = session.query(Data)
 ```
 
 # Gotchas
 
-### Filtering at Instantiation
+### One User per Session/Query/Objects Group
 
-`user` is automatically set for queries and objects at their _instantiation_,
-based on the value of their parent. For example:
+Only one user exists between a Session, its queries and returned objects. For example:
 
 ```python
 Session.configure(user=ALLOW)
 session = Session()
 query = session.query(Data)
 
-Session.configure(user=user)
-session = Session()
+session.su(user=user)
 
 results = query.all()
 ```
 
-In this example, `results` will not be filtered despite session's `user` being
-set, as `user` was `ALLOW` at `query`'s creation.
+In this example, `results` will be filtered with the session's `user`.
 
 ### Attribute Blocking Limitations
 
