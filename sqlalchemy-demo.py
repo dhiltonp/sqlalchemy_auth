@@ -16,7 +16,6 @@ def create_db():
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth._AuthQuery)
-    Session.configure(user=sqlalchemy_auth.ALLOW)
 
     return Session
 
@@ -76,5 +75,5 @@ session = Session()
 all_data = session.query(Data).all()
 print(len(all_data))
 
-all_data[0]._sqlalchemy_auth_user = 2
-print(all_data[0].data)
+with session.su(2):
+    print(len(session.query(Data).all()))

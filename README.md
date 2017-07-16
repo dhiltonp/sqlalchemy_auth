@@ -4,27 +4,35 @@ sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
 
 It is easy to use, and easy to bypass. 
 
-1. You set and receive a `user` parameter. 
-2. All mapped classes can add implicit filters.
+1. You set and receive a `user` parameter on a session.
+2. All mapped classes can add implicit query filters.
 3. All mapped classes can selectively block attribute access.
+
+`user` is shared between all queries and mapped class instances within a session.
 
 # Getting Started
 
-### Session Setup
+### Session
 
-Create a Session class using the AuthSession and AuthQuery classes:
+Create a session using the AuthSession and AuthQuery classes:
 
 ```python
-Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
+Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery, user=DENY)
+session = Session()
 ```
 
-By default `user` is set to `ALLOW`, bypassing all filtering/blocking.
-
-Activate filtering/blocking:
+By default `user` is set to `ALLOW`, bypassing all filtering/blocking. Change `user`
+to activate filtering/blocking:
 
 ```python
-Session.configure(user=current_user)
-session = Session()
+session.su(user)
+```
+
+Temporarily change `user`:
+
+```python
+with session.su(ALLOW):
+    ...
 ```
 
 ### Filters
@@ -46,7 +54,7 @@ class Data(Base):
 
 ### Attribute Blocking
 
-For attribute blocking, inherit from the AuthBase class (you can also use
+To block attributes, inherit from the AuthBase class (you can also use
 mixins instead of `declarative_base(cls=AuthBase)`):
 
 ```python
@@ -74,36 +82,23 @@ attributes are returned.
 
 Attribute blocking is only effective for instances of the mapped class.
 
-### Temporarily Changing User
-
- - out of date, will update soon (using `with` contexts+su)
-
-```python
-Session.configure(user=user)
-session = Session()
-filtered_query1 = session.query(Data)
-session.su(user=ALLOW)
-overridden_query = session.query(Data, user=ALLOW)
-filtered_query2 = session.query(Data)
-```
-
 # Gotchas
 
 ### One User per Session/Query/Objects Group
 
-Only one user exists between a Session, its queries and returned objects. For example:
+Only one user exists between a session, its queries and returned objects. For example:
 
 ```python
-Session.configure(user=ALLOW)
-session = Session()
+session.su(ALLOW)
 query = session.query(Data)
+unfiltered = query.all()
 
-session.su(user=user)
-
-results = query.all()
+session.su(user)
+filtered = query.all()
 ```
 
-In this example, `results` will be filtered with the session's `user`.
+In this example, `unfiltered` will contain all results, but the same query later
+returns `filtered` results.
 
 ### Attribute Blocking Limitations
 
@@ -118,7 +113,7 @@ obj.blocked_attr = "foo"
 Similarly, `update` bypasses attribute blocks:
 
 ```python
-query = session.query(Class.blocked).update({Class.blocked: "unchecked overwrite"})
+query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
 ```
 
 --------------------------

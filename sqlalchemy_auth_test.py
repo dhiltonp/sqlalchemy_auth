@@ -401,3 +401,25 @@ class TestJoin:
         query = session.query(func.max(self.User.id))
         assert (query.count() == 1)
         assert 3 == query.one()[0]
+
+
+class TestUserContext:
+    def test_context(self):
+        settings = sqlalchemy_auth._Settings()
+        assert settings.user is sqlalchemy_auth.ALLOW
+        with sqlalchemy_auth._UserContext(settings):
+            settings.user = "tmp1"
+            with sqlalchemy_auth._UserContext(settings):
+                assert settings.user == "tmp1"
+                settings.user = "tmp2"
+            assert settings.user == "tmp1"
+        assert settings.user is sqlalchemy_auth.ALLOW
+
+    def test_session(self):
+        session = sqlalchemy_auth.AuthSession("user1")
+        assert session._auth_settings.user == "user1"
+        session.su("user2")
+        assert session._auth_settings.user == "user2"
+        with session.su("tmp"):
+            assert session._auth_settings.user == "tmp"
+        assert session._auth_settings.user == "user2"

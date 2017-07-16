@@ -13,6 +13,10 @@ ALLOW = _Access.Allow
 DENY = _Access.Deny
 
 
+class AuthException(Exception):
+    pass
+
+
 class _Settings:
     """
     _Settings allows an AuthSession to share the `user` with other classes
@@ -22,13 +26,21 @@ class _Settings:
         self.user = ALLOW
 
 
-class AuthException(Exception):
-    pass
+class _UserContext:
+    def __init__(self, settings):
+        self._settings = settings
+        self._user = self._settings.user
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._settings.user = self._user
 
 
 class AuthSession(sqlalchemy.orm.session.Session):
     """
-    AuthSession constructs all queries with the set user.
+    AuthSession manages user/_auth_settings and passes it to queries.
     """
     def __init__(self, user=ALLOW, *args, **kwargs):
         self._auth_settings = _Settings()
@@ -36,7 +48,9 @@ class AuthSession(sqlalchemy.orm.session.Session):
         super().__init__(*args, **kwargs)
 
     def su(self, user=ALLOW):
+        context = _UserContext(self._auth_settings)
         self._auth_settings.user = user
+        return context
 
     def query(self, *args, **kwargs):
         return super().query(*args, auth_settings=self._auth_settings, **kwargs)
@@ -44,7 +58,8 @@ class AuthSession(sqlalchemy.orm.session.Session):
 
 class _AuthQuery(sqlalchemy.orm.query.Query):
     """
-    AuthQuery provides a mechanism for returned objects to know which user looked them up.
+    _AuthQuery modifies query generation to add implicit filters as needed.
+    It also sets user/_auth_settings on returned objects.
     """
 
     _Entity = collections.namedtuple('_Entity', ['class_', 'mapper'])
@@ -132,6 +147,9 @@ class _AuthQuery(sqlalchemy.orm.query.Query):
 
 
 class _AuthBase:
+    """
+    _AuthBase provides mechanisms for attribute blocking.
+    """
     # make _auth_settings exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
     # We set it to simplify the logic in __getattribute__
