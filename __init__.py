@@ -56,9 +56,9 @@ class AuthSession(sqlalchemy.orm.session.Session):
         return super().query(*args, auth_settings=self._auth_settings, **kwargs)
 
 
-class _AuthQuery(sqlalchemy.orm.query.Query):
+class AuthQuery(sqlalchemy.orm.query.Query):
     """
-    _AuthQuery modifies query generation to add implicit filters as needed.
+    AuthQuery modifies query generation to add implicit filters as needed.
     It also sets user/_auth_settings on returned objects.
     """
 
