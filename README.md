@@ -97,8 +97,8 @@ session.su(user)
 filtered = query.all()
 ```
 
-In this example, `unfiltered` will contain all results, but the same query later
-returns `filtered` results.
+In this example, `unfiltered` will contain all Data objects, but the same query later
+would return a `filtered` subset.
 
 ### Attribute Blocking Limitations
 
