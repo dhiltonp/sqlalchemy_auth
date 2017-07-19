@@ -86,7 +86,8 @@ Attribute blocking is only effective for instances of the mapped class.
 
 ### One User per Session/Query/Objects Group
 
-Only one user exists between a session, its queries and returned objects. For example:
+Only one user exists between a session, its queries and returned objects.
+For example:
 
 ```python
 session.su(ALLOW)
@@ -97,8 +98,16 @@ session.su(user)
 filtered = query.all()
 ```
 
-In this example, `unfiltered` will contain all Data objects, but the same query later
-would return a `filtered` subset.
+In this example, `unfiltered` will contain all Data objects, but the same 
+query later would return a `filtered` subset.
+
+### Scoped Session Usage
+
+To support `scoped_session.query` style syntax with `su`, you must run
+`instrument_scoped_session` on the value returned by `sqlalchemy.orm.scoped_session()`.
+
+If you do not, you will receive `AttributeError: 'scoped_session' object has
+no attribute 'su'`.
 
 ### Attribute Blocking Limitations
 

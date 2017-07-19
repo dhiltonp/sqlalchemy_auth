@@ -4,7 +4,7 @@ import pytest
 import sqlalchemy_auth
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 from sqlalchemy import Column, Integer, String
 
@@ -423,3 +423,18 @@ class TestUserContext:
         with session.su("tmp"):
             assert session._auth_settings.user == "tmp"
         assert session._auth_settings.user == "user2"
+
+
+class TestScopedSessionSU:
+    def test_scoped_session(self):
+        session = scoped_session(sessionmaker(class_=sqlalchemy_auth.AuthSession,
+                                              query_cls=sqlalchemy_auth.AuthQuery))
+        session().su(None)
+        with pytest.raises(AttributeError):
+            session.su(None)
+
+    def test_instrument_scoped_session(self):
+        session = scoped_session(sessionmaker(class_=sqlalchemy_auth.AuthSession,
+                                              query_cls=sqlalchemy_auth.AuthQuery))
+        sqlalchemy_auth.instrument_scoped_session(scoped_session)
+        session.su(None)

@@ -2,7 +2,7 @@
 import collections
 from enum import Enum
 
-import sqlalchemy.orm.attributes
+from sqlalchemy.orm import Session, Query
 
 
 class _Access(Enum):
@@ -38,7 +38,7 @@ class _UserContext:
         self._settings.user = self._user
 
 
-class AuthSession(sqlalchemy.orm.session.Session):
+class AuthSession(Session):
     """
     AuthSession manages user/_auth_settings and passes it to queries.
     """
@@ -56,7 +56,7 @@ class AuthSession(sqlalchemy.orm.session.Session):
         return super().query(*args, auth_settings=self._auth_settings, **kwargs)
 
 
-class AuthQuery(sqlalchemy.orm.query.Query):
+class AuthQuery(Query):
     """
     AuthQuery modifies query generation to add implicit filters as needed.
     It also sets user/_auth_settings on returned objects.
@@ -238,3 +238,8 @@ class AuthBase(_AuthBase):
         Only called if user != ALLOW.
         """
         return []
+
+
+def instrument_scoped_session(scoped_session):
+    from sqlalchemy.orm.scoping import instrument
+    setattr(scoped_session, 'su', instrument('su'))
