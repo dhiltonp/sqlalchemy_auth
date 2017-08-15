@@ -306,6 +306,27 @@ class TestAuthBaseFilters:
         assert a._auth_settings.user == 2
         assert b._auth_settings.user == 2
 
+    def test_slice(self):
+        for i in range(1, 4):
+            self.Session.configure(user=i)
+            session = self.Session()
+            query = session.query(self.Data).slice(0, 2)
+            assert (query.count() == min(i, 2))
+
+    def test_limit(self):
+        for i in range(1, 4):
+            self.Session.configure(user=i)
+            session = self.Session()
+            query = session.query(self.Data).limit(2)
+            assert (query.count() == min(i, 2))
+
+    def test_offset(self):
+        for i in range(1, 4):
+            self.Session.configure(user=i)
+            session = self.Session()
+            query = session.query(self.Data).offset(1)
+            assert (query.count() == i-1)
+
 
 def itercount(query):
     count = 0

@@ -2,6 +2,7 @@
 import collections
 from enum import Enum
 
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Session, Query
 
 
@@ -93,6 +94,18 @@ class AuthQuery(Query):
         filtered = self._add_auth_filters()
         return super(self.__class__, filtered).delete(*args, **kwargs)
 
+    def slice(self, *args, **kwargs):
+        filtered = self._add_auth_filters()
+        return super(self.__class__, filtered).slice(*args, **kwargs)
+
+    def limit(self, *args, **kwargs):
+        filtered = self._add_auth_filters()
+        return super(self.__class__, filtered).limit(*args, **kwargs)
+
+    def offset(self, *args, **kwargs):
+        filtered = self._add_auth_filters()
+        return super(self.__class__, filtered).offset(*args, **kwargs)
+
     def _add_auth_filters(self):
         # NOTICE: This is in the display path (via __str__?); if you are debugging
         #  with pycharm and hit a breakpoint, this code will silently execute,
@@ -100,6 +113,12 @@ class AuthQuery(Query):
         #  on the results.
         if self._auth_settings.user is DENY:
             raise AuthException("Access is denied")
+
+        try:
+            self._no_limit_offset("_add_auth_filters")
+            self._no_statement_condition("_add_auth_filters")
+        except InvalidRequestError:
+            return self
 
         filtered = self
         original_select_from_entity = filtered._select_from_entity
