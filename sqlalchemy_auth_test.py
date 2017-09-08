@@ -2,9 +2,9 @@
 
 import pytest
 import sqlalchemy_auth
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, ForeignKey, Table
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 
 from sqlalchemy import Column, Integer, String
 
@@ -155,9 +155,9 @@ class TestAuthBaseFilters:
         owner = Column(Integer)
         data = Column(String)
 
-        @staticmethod
-        def add_auth_filters(query, user):
-            return query.filter_by(owner=user)
+        @classmethod
+        def add_auth_filters(cls, query, user):
+            return query.filter(cls.owner == user)
 
     engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
@@ -335,29 +335,56 @@ def itercount(query):
     return count
 
 
+company_resource_association = Table('company_resource_association', Base.metadata,
+                                     Column('company_id', Integer, ForeignKey('company.id')),
+                                     Column('resource_id', Integer, ForeignKey('sharedresource.id')))
+
+
+class Company(Base, sqlalchemy_auth.AuthBase):
+    __tablename__ = "company"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    users = relationship("User")
+    sharedresources = relationship("SharedResource",
+                                   secondary=company_resource_association,
+                                   back_populates="companies")
+
+    @staticmethod
+    def add_auth_filters(query, user):
+        return query.filter_by(id=user.company_id)
+
+
+class User(Base, sqlalchemy_auth.AuthBase):
+    __tablename__ = "user"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    company_id = Column(Integer, ForeignKey('company.id'))
+    company = relationship("Company", back_populates="users")
+
+    @staticmethod
+    def add_auth_filters(query, user):
+        return query.filter_by(company=user.company)
+
+
+class SharedResource(Base, sqlalchemy_auth.AuthBase):
+    __tablename__ = "sharedresource"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    companies = relationship("Company",
+                             secondary=company_resource_association,
+                             back_populates="sharedresources")
+
+    @staticmethod
+    def add_auth_filters(query, user):
+        return query
+        #return query.filter(companies=user.company)
+
+
 # test - auth query filters - one class, two class, join, single attributes
-class TestJoin:
-    class Company(Base, sqlalchemy_auth.AuthBase):
-        __tablename__ = "company"
-
-        id = Column(Integer, primary_key=True)
-        name = Column(String)
-
-        @staticmethod
-        def add_auth_filters(query, user):
-            return query.filter_by(id=user.company)
-
-    class User(Base, sqlalchemy_auth.AuthBase):
-        __tablename__ = "user"
-
-        id = Column(Integer, primary_key=True)
-        company = Column(Integer)
-        name = Column(String)
-
-        @staticmethod
-        def add_auth_filters(query, user):
-            return query.filter_by(company=user.company)
-
+class TestInteractions:
     engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
@@ -369,60 +396,111 @@ class TestJoin:
     session.add(Company(name="B"))
     session.add(Company(name="C"))
 
-    session.add(User(company=1, name="a"))
-    session.add(User(company=2, name="a"))
-    session.add(User(company=2, name="b"))
-    session.add(User(company=3, name="a"))
-    session.add(User(company=3, name="b"))
-    session.add(User(company=3, name="c"))
+    session.add(User(company_id=1, name="a"))
+    session.add(User(company_id=2, name="a"))
+    session.add(User(company_id=2, name="b"))
+    session.add(User(company_id=3, name="a"))
+    session.add(User(company_id=3, name="b"))
+    session.add(User(company_id=3, name="c"))
 
     session.commit()
 
-    user1a = session.query(User).filter(User.company == 1, User.name == "a").one()
-    user2a = session.query(User).filter(User.company == 2, User.name == "a").one()
+    user1a = session.query(User).filter(User.company_id == 1, User.name == "a").one()
+    user2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
 
     def test_state(self):
         self.Session.configure(user=sqlalchemy_auth.ALLOW)
         session = self.Session()
-        query = session.query(self.Company)
+        query = session.query(Company)
         assert(query.count() == 3)
-        query = session.query(self.User)
+        query = session.query(User)
         assert(query.count() == 6)
 
     def test_company_filter(self):
         self.Session.configure(user=self.user2a)
         session = self.Session()
-        query = session.query(self.User)
+        query = session.query(User)
         assert(query.count() == 2)
-        query = session.query(self.Company)
+        query = session.query(Company)
         assert(query.count() == 1)
 
     def test_join(self):
         self.Session.configure(user=self.user2a)
         session = self.Session()
-        query = session.query(self.User.name, self.Company.name)
+        query = session.query(User.name, Company.name)
         assert (query.count() == 2)
-        query = session.query(self.Company.name, self.User.name)
+        query = session.query(Company.name, User.name)
         assert (query.count() == 2)
-        assert 1 == query.filter(self.User.name == self.user2a.name).count()
+        assert 1 == query.filter(User.name == self.user2a.name).count()
 
     def test_distinct(self):
         from sqlalchemy import distinct
         self.Session.configure(user=self.user2a)
         session = self.Session()
-        query = session.query(self.User.company)
+        query = session.query(User.company_id)
         assert (query.count() == 2)
-        query = session.query(distinct(self.User.company))
+        query = session.query(distinct(User.company_id))
         assert (query.count() == 1)
 
     def test_max(self):
         from sqlalchemy import func
         self.Session.configure(user=self.user2a)
         session = self.Session()
-        query = session.query(func.max(self.User.id))
+        query = session.query(func.max(User.id))
         assert (query.count() == 1)
         assert 3 == query.one()[0]
 
+    def test_relationships(self):
+        assert self.user1a.company.id == 1
+        assert self.user1a.company.users[0] == self.user1a
+        assert len(self.user2a.company.users) == 2
+
+
+
+class TestSharedResource:
+    #some shared resource
+
+    engine = create_engine('sqlite:///:memory:')#, echo=True)
+    Base.metadata.create_all(engine)
+
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session.configure(user=sqlalchemy_auth.ALLOW)
+    session = Session()
+
+    companyA = Company(name="A")
+    companyB = Company(name="B")
+    session.add(companyA)
+    session.add(companyB)
+    session.commit()
+
+    userA = User(name="a", company_id=companyA.id)
+    userB = User(name="a", company_id=companyB.id)
+    session.add(userA)
+    session.add(userB)
+
+    resourceA = SharedResource(name="A")
+    resourceA.companies.append(companyA)
+    resourceB = SharedResource(name="B")
+    resourceB.companies.append(companyB)
+    resourceAB = SharedResource(name="AB")
+    resourceAB.companies.append(companyA)
+    resourceAB.companies.append(companyB)
+
+    session.commit()
+
+    def test_shared_resource(self):
+        self.Session.configure(user=self.userA)
+        session = self.Session()
+        companyA = session.query(Company).one()
+        assert len(companyA.sharedresources) == 2
+        assert session.query(SharedResource).count() == 2
+        resourceAB = session.query(SharedResource).filter_by(name="AB").one()
+        assert len(resourceAB.companies) == 1
+
+        # queries of association tables (for extra data) will likely
+        # have issues - how can we add add_auth_filters to them? or make them work automagically?
+
+        # use get/trigger a statement condition.
 
 class TestUserContext:
     def test_context(self):

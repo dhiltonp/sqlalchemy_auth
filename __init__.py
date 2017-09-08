@@ -71,8 +71,15 @@ class AuthQuery(Query):
         super().__init__(*args, **kwargs)
 
     def _compile_context(self, labels=True):
+        if hasattr(self, "_compile_context_guard") and self._compile_context_guard:
+            return self._compile_context_retval
+        self._compile_context_guard = True
         filtered = self._add_auth_filters()
-        return super(self.__class__, filtered)._compile_context(labels)
+        self._compile_context_retval = super(self.__class__, filtered)._compile_context(labels)
+        #print(self.statement)
+
+        self._compile_context_guard = False
+        return self._compile_context_retval
 
     def _execute_and_instances(self, querycontext):
         instances_generator = super()._execute_and_instances(querycontext)
@@ -95,18 +102,6 @@ class AuthQuery(Query):
         filtered = self._add_auth_filters()
         return super(self.__class__, filtered).delete(*args, **kwargs)
 
-    def slice(self, *args, **kwargs):
-        filtered = self._add_auth_filters()
-        return super(self.__class__, filtered).slice(*args, **kwargs)
-
-    def limit(self, *args, **kwargs):
-        filtered = self._add_auth_filters()
-        return super(self.__class__, filtered).limit(*args, **kwargs)
-
-    def offset(self, *args, **kwargs):
-        filtered = self._add_auth_filters()
-        return super(self.__class__, filtered).offset(*args, **kwargs)
-
     def _add_auth_filters(self):
         # NOTICE: This is in the display path (via __str__?); if you are debugging
         #  with pycharm and hit a breakpoint, this code will silently execute,
@@ -116,21 +111,21 @@ class AuthQuery(Query):
             raise AuthException("Access is denied")
 
         try:
-            self._no_limit_offset("_add_auth_filters")
+            #pass
+            # don't try to add filters if we've been given a text statement to execute.
             self._no_statement_condition("_add_auth_filters")
         except InvalidRequestError:
             return self
 
-        filtered = self
-        original_select_from_entity = filtered._select_from_entity
+        filtered = self.enable_assertions(False)
         if filtered._auth_settings.user is not ALLOW:
+            # actually call add_auth_filters
             for class_ in {x['entity'] for x in self.column_descriptions if isinstance(x['entity'], DeclarativeMeta)}:
-                # setting _select_from_entity allows query(id=...) to work inside of
+                # setting _select_from_entity allows filter_by(id=...) to target class_'s entity inside of
                 #  add_auth_filters when doing a join
                 filtered._select_from_entity = class_.__mapper__
                 filtered = class_.add_auth_filters(filtered, filtered._auth_settings.user)
 
-        filtered._select_from_entity = original_select_from_entity
         return filtered
 
 
