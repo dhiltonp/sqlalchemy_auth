@@ -2,7 +2,7 @@
 
 import pytest
 import sqlalchemy_auth
-from sqlalchemy import create_engine, ForeignKey, Table
+from sqlalchemy import create_engine, ForeignKey, Table, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 
@@ -350,8 +350,8 @@ class Company(Base, sqlalchemy_auth.AuthBase):
                                    secondary=company_resource_association,
                                    back_populates="companies")
 
-    @staticmethod
-    def add_auth_filters(query, user):
+    @classmethod
+    def add_auth_filters(cls, query, user):
         return query.filter_by(id=user.company_id)
 
 
@@ -363,8 +363,8 @@ class User(Base, sqlalchemy_auth.AuthBase):
     company_id = Column(Integer, ForeignKey('company.id'))
     company = relationship("Company", back_populates="users")
 
-    @staticmethod
-    def add_auth_filters(query, user):
+    @classmethod
+    def add_auth_filters(cls, query, user):
         return query.filter_by(company=user.company)
 
 
@@ -376,11 +376,6 @@ class SharedResource(Base, sqlalchemy_auth.AuthBase):
     companies = relationship("Company",
                              secondary=company_resource_association,
                              back_populates="sharedresources")
-
-    @staticmethod
-    def add_auth_filters(query, user):
-        return query
-        #return query.filter(companies=user.company)
 
 
 # test - auth query filters - one class, two class, join, single attributes
@@ -456,10 +451,7 @@ class TestInteractions:
         assert len(self.user2a.company.users) == 2
 
 
-
 class TestSharedResource:
-    #some shared resource
-
     engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
@@ -493,14 +485,12 @@ class TestSharedResource:
         session = self.Session()
         companyA = session.query(Company).one()
         assert len(companyA.sharedresources) == 2
-        assert session.query(SharedResource).count() == 2
+        assert session.query(SharedResource).count() == 3
+        resourceB = session.query(SharedResource).filter_by(name="B").one()
+        assert len(resourceB.companies) == 0
         resourceAB = session.query(SharedResource).filter_by(name="AB").one()
         assert len(resourceAB.companies) == 1
 
-        # queries of association tables (for extra data) will likely
-        # have issues - how can we add add_auth_filters to them? or make them work automagically?
-
-        # use get/trigger a statement condition.
 
 class TestUserContext:
     def test_context(self):

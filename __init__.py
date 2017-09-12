@@ -196,8 +196,8 @@ class AuthBase(_AuthBase):
         Base = declarative_base(cls=sqlalchemy_auth.AuthBase)    
     """
 
-    @staticmethod
-    def add_auth_filters(query, user):
+    @classmethod
+    def add_auth_filters(cls, query, user):
         """
         Override this to add implicit filters to a query, before any additional
         filters are added.
