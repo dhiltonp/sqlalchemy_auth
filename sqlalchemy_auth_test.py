@@ -527,3 +527,52 @@ class TestScopedSessionSU:
                                               query_cls=sqlalchemy_auth.AuthQuery))
         sqlalchemy_auth.instrument_scoped_session(scoped_session)
         session.su(None)
+
+
+class InsertData(Base, sqlalchemy_auth.AuthBase):
+    __tablename__ = "data2"
+
+    id = Column(Integer, primary_key=True)
+    owner = Column(Integer)
+    data = Column(String)
+
+    def add_auth_insert_data(self, user):
+        self.owner = user
+
+
+# test - auth query inserts
+class TestAuthBaseInserts:
+    engine = create_engine('sqlite:///:memory:')  # , echo=True)
+    Base.metadata.create_all(engine)
+
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session.configure(user=sqlalchemy_auth.ALLOW)
+    session = Session()
+
+    def test_add(self):
+        session = self.Session()
+        with session.su(10):
+            obj = InsertData(data="Insert")
+            session.add(obj)
+            session.commit()
+            assert (obj.owner == 10)
+
+        with session.su():
+            obj = session.query(InsertData).filter(InsertData.owner == 10).one()
+            obj.data = "SU Update"
+            session.commit()
+            assert (obj.data == "SU Update")
+            assert (obj.owner == 10)
+
+        with session.su(10):
+            obj = session.query(InsertData).filter(InsertData.owner == 10).one()
+            obj.data = "Owner Update"
+            session.commit()
+            assert (obj.data == "Owner Update")
+
+        with session.su(20):
+            obj.data = "Non-owner Update"
+            session.add(obj)
+            session.commit()
+            assert (obj.data == "Non-owner Update")
+            assert (obj.owner == 10)

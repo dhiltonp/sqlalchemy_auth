@@ -5,7 +5,7 @@ sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
 It is easy to use, and easy to bypass. 
 
 1. You set a `user` on a session, and receive a `user` within a query.
-2. All mapped classes can add implicit query filters.
+2. All mapped classes can add implicit filters on queries and implicit data on inserts.
 3. All mapped classes can selectively block attribute access.
 
 `user` is shared between all queries and mapped class instances within a session.
@@ -21,8 +21,8 @@ Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery, use
 session = Session()
 ```
 
-By default `user` is set to `ALLOW`, bypassing all filtering/blocking. Change `user`
-to activate filtering/blocking:
+By default `user` is set to `ALLOW`, bypassing all auth mechanisms. Change `user`
+to enable authorization:
 
 ```python
 session.su(user)
@@ -50,6 +50,22 @@ class Data(Base):
     @classmethod
     def add_auth_filters(cls, query, user):
         return query.filter_by(owner=user.id)
+```
+
+### Inserts
+
+To add data on insert, define `add_auth_insert_data`
+
+```python
+class Data(Base):
+    __tablename__ = "data"
+
+    id = Column(Integer, primary_key=True)
+    owner = Column(Integer)
+    data = Column(String)
+
+    def add_auth_insert_data(self, user):
+        self.owner = user.id
 ```
 
 ### Attribute Blocking

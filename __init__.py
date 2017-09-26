@@ -57,6 +57,13 @@ class AuthSession(Session):
     def query(self, *args, **kwargs):
         return super().query(*args, auth_settings=self._auth_settings, **kwargs)
 
+    def _save_impl(self, state):
+        if self._auth_settings.user is DENY:
+            raise AuthException("Access is denied")
+        if self._auth_settings.user is not ALLOW:
+            state.object.add_auth_insert_data(self._auth_settings.user)
+        super()._save_impl(state)
+
 
 class AuthQuery(Query):
     """
@@ -203,6 +210,13 @@ class AuthBase(_AuthBase):
         filters are added.
         """
         return query
+
+    def add_auth_insert_data(self, user):
+        """
+        Override this to assign implicit values to a new object (for example,
+        via Session.add(Base()))
+        """
+        pass
 
     def _blocked_read_attributes(self, user):
         """
