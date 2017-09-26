@@ -55,7 +55,7 @@ class AuthSession(Session):
         return context
 
     def query(self, *args, **kwargs):
-        return super().query(*args, auth_settings=self._auth_settings, **kwargs)
+        return super().query(*args, **kwargs)
 
     def _save_impl(self, state):
         if self._auth_settings.user is DENY:
@@ -72,10 +72,6 @@ class AuthQuery(Query):
     """
 
     _Entity = collections.namedtuple('_Entity', ['class_', 'mapper'])
-
-    def __init__(self, *args, auth_settings=DENY, **kwargs):
-        self._auth_settings = auth_settings
-        super().__init__(*args, **kwargs)
 
     def _compile_context(self, labels=True):
         if hasattr(self, "_compile_context_guard") and self._compile_context_guard:
@@ -95,7 +91,7 @@ class AuthQuery(Query):
             #  (count, for example).
             # Assuming it's an uncommon occurrence, we'll try/accept (test this later)
             try:
-                row._auth_settings = self._auth_settings
+                row._auth_settings = self.session._auth_settings
             except AttributeError:
                 pass
             yield row
@@ -114,7 +110,7 @@ class AuthQuery(Query):
         #  with pycharm and hit a breakpoint, this code will silently execute,
         #  potentially causing filters to be added twice. This should have no affect
         #  on the results.
-        if self._auth_settings.user is DENY:
+        if self.session._auth_settings.user is DENY:
             raise AuthException("Access is denied")
 
         try:
@@ -125,13 +121,13 @@ class AuthQuery(Query):
             return self
 
         filtered = self.enable_assertions(False)
-        if filtered._auth_settings.user is not ALLOW:
+        if self.session._auth_settings.user is not ALLOW:
             # actually call add_auth_filters
             for class_ in {x['entity'] for x in self.column_descriptions if isinstance(x['entity'], DeclarativeMeta)}:
                 # setting _select_from_entity allows filter_by(id=...) to target class_'s entity inside of
                 #  add_auth_filters when doing a join
                 filtered._select_from_entity = class_.__mapper__
-                filtered = class_.add_auth_filters(filtered, filtered._auth_settings.user)
+                filtered = class_.add_auth_filters(filtered, self.session._auth_settings.user)
 
         return filtered
 

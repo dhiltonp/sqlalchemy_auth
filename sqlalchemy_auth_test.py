@@ -327,6 +327,18 @@ class TestAuthBaseFilters:
             query = session.query(self.Data).offset(1)
             assert (query.count() == i-1)
 
+    def test_with_session(self):
+        self.Session.configure(user=1)
+        session1 = self.Session()
+        query = session1.query(self.Data)
+        assert (query.count() == 1)
+
+        self.Session.configure(user=2)
+        session2 = self.Session()
+        assert (query.with_session(session2).count() == 2)
+
+        assert (query.count() == 1)
+
 
 def itercount(query):
     count = 0
