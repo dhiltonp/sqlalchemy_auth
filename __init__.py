@@ -78,7 +78,7 @@ class AuthQuery(Query):
             return self._compile_context_retval
         self._compile_context_guard = True
         filtered = self._add_auth_filters()
-        self._compile_context_retval = super(self.__class__, filtered)._compile_context(labels)
+        self._compile_context_retval = super(AuthQuery, filtered)._compile_context(labels)
         #print(self.statement)
 
         self._compile_context_guard = False
@@ -99,11 +99,11 @@ class AuthQuery(Query):
     def update(self, *args, **kwargs):
         # TODO: assert that protected attributes aren't modified?
         filtered = self._add_auth_filters()
-        return super(self.__class__, filtered).update(*args, **kwargs)
+        return super(AuthQuery, filtered).update(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         filtered = self._add_auth_filters()
-        return super(self.__class__, filtered).delete(*args, **kwargs)
+        return super(AuthQuery, filtered).delete(*args, **kwargs)
 
     def _add_auth_filters(self):
         # NOTICE: This is in the display path (via __str__?); if you are debugging
