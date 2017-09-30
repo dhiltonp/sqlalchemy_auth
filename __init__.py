@@ -1,5 +1,4 @@
 #!/usr/bin/python
-import collections
 from enum import Enum
 
 from sqlalchemy.exc import InvalidRequestError
@@ -10,6 +9,7 @@ from sqlalchemy.orm import Session, Query
 class _Access(Enum):
     Allow = "Allow"
     Deny = "Deny"
+
 
 ALLOW = _Access.Allow
 DENY = _Access.Deny
@@ -70,9 +70,6 @@ class AuthQuery(Query):
     AuthQuery modifies query generation to add implicit filters as needed.
     It also sets user/_auth_settings on returned objects.
     """
-
-    _Entity = collections.namedtuple('_Entity', ['class_', 'mapper'])
-
     def _compile_context(self, labels=True):
         if hasattr(self, "_compile_context_guard") and self._compile_context_guard:
             return self._compile_context_retval

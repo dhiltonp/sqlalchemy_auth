@@ -78,7 +78,7 @@ class TestAuthBaseAttributes:
             blocked_data.blocked_write = "value"
 
         blocked_data._auth_settings.user = 1
-        assert(blocked_data.blocked_write != "value")
+        assert blocked_data.blocked_write != "value"
 
     def test_blocked_both(self):
         blocked_data = self.create_blocked_data()
@@ -93,7 +93,7 @@ class TestAuthBaseAttributes:
             blocked_data.blocked_both = "value"
 
         blocked_data._auth_settings.user = sqlalchemy_auth.ALLOW
-        assert(blocked_data.blocked_write != "value")
+        assert blocked_data.blocked_write != "value"
 
 
 class TestGetAttributes:
@@ -128,22 +128,22 @@ class TestGetAttributes:
     def test_get_read_attributes(self):
         a = self.create_attribute_check()
         attrs = a.get_read_attributes()
-        assert(len(attrs) == 3)
+        assert len(attrs) == 3
         for v in ["id", "owner", "data"]:
-            assert(v in attrs)
+            assert v in attrs
 
     def test_get_write_attributes(self):
         a = self.create_attribute_check()
         attrs = a.get_write_attributes()
-        assert (len(attrs) == 2)
+        assert len(attrs) == 2
         for v in ["data", "secret"]:
-            assert (v in attrs)
+            assert v in attrs
 
     def test_get_blocked_read_attributes(self):
         a = self.create_attribute_check()
         attrs = a.get_blocked_read_attributes()
-        assert(len(attrs) == 1)
-        assert("secret" in attrs)
+        assert len(attrs) == 1
+        assert "secret" in attrs
 
 
 # test - auth query filters - one class, two class, single attributes
@@ -178,30 +178,30 @@ class TestAuthBaseFilters:
     def test_bypass(self):
         session = self.Session()
         query = session.query(self.Data)
-        assert(query.count() == 6)
+        assert query.count() == 6
 
     def test_full_object(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data)
-            assert (query.count() == i)
+            assert query.count() == i
 
     def test_partial_object(self):
         session = self.Session()
         for i in range(1, 4):
             session.su(user=i)
             query = session.query(self.Data.data)
-            assert (itercount(query) == i)
-            assert (query.count() == i)
+            assert itercount(query) == i
+            assert query.count() == i
 
     def test_two_partial_objects(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data.data, self.Data.id)
-            assert (itercount(query) == i)
-            assert (query.count() == i)
+            assert itercount(query) == i
+            assert query.count() == i
 
     def test_mutation(self):
         for i in range(1, 4):
@@ -209,9 +209,9 @@ class TestAuthBaseFilters:
             session = self.Session()
             query = session.query(self.Data.data)
             statement1 = str(query.statement)
-            assert (itercount(query) == i)
+            assert itercount(query) == i
             statement2 = str(query.statement)
-            assert (statement1 == statement2)
+            assert statement1 == statement2
 
     def test_user_change(self):
         # Session level:
@@ -219,7 +219,7 @@ class TestAuthBaseFilters:
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data.data)
-            assert (itercount(query) == i)
+            assert itercount(query) == i
 
         # session level:
         self.Session.configure()
@@ -227,7 +227,7 @@ class TestAuthBaseFilters:
         for i in range(1, 4):
             session.su(user=i)
             query = session.query(self.Data.data)
-            assert (itercount(query) == i)
+            assert itercount(query) == i
 
         # query level:
         self.Session.configure()
@@ -235,7 +235,7 @@ class TestAuthBaseFilters:
         for i in range(1, 4):
             session.su(user=i)
             query = session.query(self.Data.data)
-            assert (itercount(query) == i)
+            assert itercount(query) == i
 
     def test_update(self):
         self.Session.configure(user=sqlalchemy_auth.ALLOW)
@@ -243,33 +243,33 @@ class TestAuthBaseFilters:
 
         # B->D
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
-        assert(bvals.count() == 2)  # there are 2 Bs
+        assert bvals.count() == 2  # there are 2 Bs
         session.su(2)
-        assert (bvals.count() == 1)  # one owned by user 2
+        assert bvals.count() == 1  # one owned by user 2
         changed = bvals.update({self.Data.data: "D"})
-        assert (changed == 1)  # the other is not changed
+        assert changed == 1  # the other is not changed
         session.su(sqlalchemy_auth.ALLOW)
-        assert (bvals.count() == 1)
+        assert bvals.count() == 1
 
         # D->B
         # undo the changes we've performed.
         changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data: "B"})
-        assert(changed == 1)
+        assert changed == 1
 
     def test_delete(self):
         self.Session.configure(user=sqlalchemy_auth.ALLOW)
         session = self.Session()
 
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
-        assert (bvals.count() == 2)  # there are 2 Bs
+        assert bvals.count() == 2  # there are 2 Bs
         changed = bvals.delete()
         assert changed == 2
         session.rollback()
 
         session.su(2)
-        assert (bvals.count() == 1)  # one owned by user 2
+        assert bvals.count() == 1  # one owned by user 2
         changed = bvals.delete()
-        assert (changed == 1)  # the other is not changed
+        assert changed == 1  # the other is not changed
         session.rollback()
 
         session.su(sqlalchemy_auth.DENY)
@@ -311,33 +311,33 @@ class TestAuthBaseFilters:
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data).slice(0, 2)
-            assert (query.count() == min(i, 2))
+            assert query.count() == min(i, 2)
 
     def test_limit(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data).limit(2)
-            assert (query.count() == min(i, 2))
+            assert query.count() == min(i, 2)
 
     def test_offset(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data).offset(1)
-            assert (query.count() == i-1)
+            assert query.count() == i-1
 
     def test_with_session(self):
         self.Session.configure(user=1)
         session1 = self.Session()
         query = session1.query(self.Data)
-        assert (query.count() == 1)
+        assert query.count() == 1
 
         self.Session.configure(user=2)
         session2 = self.Session()
-        assert (query.with_session(session2).count() == 2)
+        assert query.with_session(session2).count() == 2
 
-        assert (query.count() == 1)
+        assert query.count() == 1
 
 
 def itercount(query):
@@ -419,25 +419,25 @@ class TestInteractions:
         self.Session.configure(user=sqlalchemy_auth.ALLOW)
         session = self.Session()
         query = session.query(Company)
-        assert(query.count() == 3)
+        assert query.count() == 3
         query = session.query(User)
-        assert(query.count() == 6)
+        assert query.count() == 6
 
     def test_company_filter(self):
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(User)
-        assert(query.count() == 2)
+        assert query.count() == 2
         query = session.query(Company)
-        assert(query.count() == 1)
+        assert query.count() == 1
 
     def test_join(self):
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(User.name, Company.name)
-        assert (query.count() == 2)
+        assert query.count() == 2
         query = session.query(Company.name, User.name)
-        assert (query.count() == 2)
+        assert query.count() == 2
         assert 1 == query.filter(User.name == self.user2a.name).count()
 
     def test_distinct(self):
@@ -445,16 +445,16 @@ class TestInteractions:
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(User.company_id)
-        assert (query.count() == 2)
+        assert query.count() == 2
         query = session.query(distinct(User.company_id))
-        assert (query.count() == 1)
+        assert query.count() == 1
 
     def test_max(self):
         from sqlalchemy import func
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(func.max(User.id))
-        assert (query.count() == 1)
+        assert query.count() == 1
         assert 3 == query.one()[0]
 
     def test_relationships(self):
@@ -567,24 +567,24 @@ class TestAuthBaseInserts:
             obj = InsertData(data="Insert")
             session.add(obj)
             session.commit()
-            assert (obj.owner == 10)
+            assert obj.owner == 10
 
         with session.su():
             obj = session.query(InsertData).filter(InsertData.owner == 10).one()
             obj.data = "SU Update"
             session.commit()
-            assert (obj.data == "SU Update")
-            assert (obj.owner == 10)
+            assert obj.data == "SU Update"
+            assert obj.owner == 10
 
         with session.su(10):
             obj = session.query(InsertData).filter(InsertData.owner == 10).one()
             obj.data = "Owner Update"
             session.commit()
-            assert (obj.data == "Owner Update")
+            assert obj.data == "Owner Update"
 
         with session.su(20):
             obj.data = "Non-owner Update"
             session.add(obj)
             session.commit()
-            assert (obj.data == "Non-owner Update")
-            assert (obj.owner == 10)
+            assert obj.data == "Non-owner Update"
+            assert obj.owner == 10
