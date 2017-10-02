@@ -2,7 +2,7 @@
 
 import pytest
 import sqlalchemy_auth
-from sqlalchemy import create_engine, ForeignKey, Table, func
+from sqlalchemy import create_engine, ForeignKey, Table, literal
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 
@@ -338,6 +338,15 @@ class TestAuthBaseFilters:
         assert query.with_session(session2).count() == 2
 
         assert query.count() == 1
+
+    def test_select_from(self):
+        session = self.Session()
+        for i in range(1, 4):
+            with session.su(i):
+                count1 = session.query(literal(True)).select_from(self.Data).count()
+                count2 = session.query(self.Data).count()
+                assert count1 == count2
+                assert count2 == i
 
 
 def itercount(query):
