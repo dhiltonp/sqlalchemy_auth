@@ -373,7 +373,8 @@ class Company(Base, sqlalchemy_auth.AuthBase):
 
     @classmethod
     def add_auth_filters(cls, query, user):
-        return query.filter_by(id=user.company_id)
+        # return query.filter_by(id=user.company_id)
+        return query.filter(cls.id == user.company_id)
 
 
 class User(Base, sqlalchemy_auth.AuthBase):
@@ -386,7 +387,8 @@ class User(Base, sqlalchemy_auth.AuthBase):
 
     @classmethod
     def add_auth_filters(cls, query, user):
-        return query.filter_by(company=user.company)
+        # return query.filter_by(company=user.company)
+        return query.filter(cls.company_id == user.company_id)
 
 
 class SharedResource(Base, sqlalchemy_auth.AuthBase):
@@ -397,6 +399,55 @@ class SharedResource(Base, sqlalchemy_auth.AuthBase):
     companies = relationship("Company",
                              secondary=company_resource_association,
                              back_populates="sharedresources")
+
+
+class Widget(Base, sqlalchemy_auth.AuthBase):
+    __tablename__ = "widget"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    company_id = Column(Integer, ForeignKey('company.id'))
+    company = relationship("Company", backref="widgets")
+
+
+class TestWidgets:
+    engine = create_engine('sqlite:///:memory:', echo=True)
+    Base.metadata.create_all(engine)
+
+    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
+    Session.configure(user=sqlalchemy_auth.ALLOW)
+    session = Session()
+
+    session.add(Company(name="A"))
+    session.add(Company(name="B"))
+
+    session.add(User(company_id=1, name="userA1"))
+
+    session.add(Widget(company_id=1, name="widgetA1"))
+    session.add(Widget(company_id=1, name="widgetA2"))
+    session.add(Widget(company_id=2, name="widgetB1"))
+    session.add(Widget(company_id=2, name="widgetB2"))
+
+    session.commit()
+
+    userA1 = session.query(User).filter(User.company_id == 1, User.name == "userA1").one()
+
+    def test_orthogonal_data(self):
+        self.Session.configure(user=self.userA1)
+        session = self.Session()
+        query = (
+            session
+            .query(Widget)
+            .join(Company)
+        )
+        assert query.count() == 2
+
+    def test_select_from(self):
+        self.Session.configure(user=self.userA1)
+        session = self.Session()
+        # query = session.query(Widget).with_entities(literal(True)).select_from(Widget)
+        query = session.query(literal(True)).select_from(Widget)
+        assert query.count() == 2
 
 
 # test - auth query filters - one class, two class, join, single attributes

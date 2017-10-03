@@ -5,6 +5,7 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Session, Query
+from sqlalchemy.orm.util import AliasedClass
 
 
 class _Access(Enum):
@@ -74,6 +75,7 @@ class AuthQuery(Query):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._auth_from_entities = set()
+        self._auth_join_entities = set()
 
     def _compile_context(self, labels=True):
         if hasattr(self, "_compile_context_guard") and self._compile_context_guard:
@@ -98,15 +100,22 @@ class AuthQuery(Query):
                 pass
             yield row
 
+    def update_entity_set(self, objects, entity_set):
+        entity_set = entity_set.copy()
+        for obj in objects:
+            info = inspect(obj)
+            if hasattr(info, "entity") and isinstance(info.entity, (AliasedClass, DeclarativeMeta)):
+                entity_set.add(info.entity)
+        return entity_set
+
+    def _join(self, keys, outerjoin, full, create_aliases, from_joinpoint):
+        val = super()._join(keys, outerjoin, full, create_aliases, from_joinpoint)
+        val._auth_join_entities = self.update_entity_set(keys, self._auth_join_entities)
+        return val
+
     def _set_select_from(self, obj, set_base_alias):
-        # track select_from entities, for later use in _get_filter_entities
         super()._set_select_from(obj, set_base_alias)
-        # create a new set, so that query._clone (@generative) works correctly.
-        self._auth_from_entities = self._auth_from_entities.copy()
-        for from_obj in obj:
-            info = inspect(from_obj)
-            if hasattr(info, "class_") and isinstance(info.class_, DeclarativeMeta):
-                self._auth_from_entities.add(info.class_)
+        self._auth_from_entities = self.update_entity_set(obj, self._auth_from_entities)
 
     def update(self, *args, **kwargs):
         # TODO: assert that protected attributes aren't modified?
@@ -121,6 +130,7 @@ class AuthQuery(Query):
         filter_entities = {x['entity'] for x in self.column_descriptions if isinstance(x['entity'], DeclarativeMeta)}
         if self._orm_only_from_obj_alias:
             filter_entities.update(self._auth_from_entities)
+            filter_entities.update(self._auth_join_entities)
         return filter_entities
 
     def _add_auth_filters(self):
