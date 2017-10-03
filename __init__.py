@@ -54,9 +54,6 @@ class AuthSession(Session):
         self._auth_settings.user = user
         return context
 
-    def query(self, *args, **kwargs):
-        return super().query(*args, **kwargs)
-
     def _save_impl(self, state):
         if self._auth_settings.user is DENY:
             raise AuthException("Access is denied")
@@ -81,7 +78,6 @@ class AuthQuery(Query):
         self._compile_context_guard = True
         filtered = self._add_auth_filters()
         self._compile_context_retval = super(AuthQuery, filtered)._compile_context(labels)
-        #print(self.statement)
 
         self._compile_context_guard = False
         return self._compile_context_retval
@@ -143,15 +139,10 @@ class AuthQuery(Query):
         return filter_entities
 
     def _add_auth_filters(self):
-        # NOTICE: This is in the display path (via __str__?); if you are debugging
-        #  with pycharm and hit a breakpoint, this code will silently execute,
-        #  potentially causing filters to be added twice. This should have no affect
-        #  on the results.
         if self.session._auth_settings.user is DENY:
             raise AuthException("Access is denied")
 
         try:
-            #pass
             # don't try to add filters if we've been given a text statement to execute.
             self._no_statement_condition("_add_auth_filters")
         except InvalidRequestError:
@@ -159,7 +150,6 @@ class AuthQuery(Query):
 
         filtered = self.enable_assertions(False)
         if self.session._auth_settings.user is not ALLOW:
-            # actually call add_auth_filters
             for class_ in self._get_filter_entities():
                 # setting _select_from_entity allows filter_by(id=...) to target class_'s entity inside of
                 #  add_auth_filters when doing a join
