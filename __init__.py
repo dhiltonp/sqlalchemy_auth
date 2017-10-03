@@ -1,11 +1,9 @@
 #!/usr/bin/python
 from enum import Enum
 
-from sqlalchemy import inspect
 from sqlalchemy.exc import InvalidRequestError
-from sqlalchemy.ext.declarative import DeclarativeMeta
-from sqlalchemy.orm import Session, Query
-from sqlalchemy.orm.util import AliasedClass
+from sqlalchemy.orm import Session, Query, Mapper
+from sqlalchemy.orm.query import _QueryEntity
 
 
 class _Access(Enum):
@@ -72,9 +70,9 @@ class AuthQuery(Query):
     AuthQuery modifies query generation to add implicit filters as needed.
     It also sets user/_auth_settings on returned objects.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._auth_from_entities = set()
+    def __init__(self, entities, session=None):
+        super().__init__(entities=entities, session=session)
+        self._auth_from_entities = self._update_entity_set(entities, set())
         self._auth_join_entities = set()
 
     def _compile_context(self, labels=True):
@@ -100,22 +98,33 @@ class AuthQuery(Query):
                 pass
             yield row
 
-    def update_entity_set(self, objects, entity_set):
-        entity_set = entity_set.copy()
+    def _get_entities(self, objects):
+        """
+        copy Query._set_entities() behaviour providing dummy instance for
+        entities to accumulate on via entity_wrapper side effect
+        """
+        class dummy:
+            _entities = []
+            _primary_entity = None
         for obj in objects:
-            info = inspect(obj)
-            if hasattr(info, "entity") and isinstance(info.entity, (AliasedClass, DeclarativeMeta)):
-                entity_set.add(info.entity)
+            _QueryEntity(dummy, obj)
+        return dummy._entities
+
+    def _update_entity_set(self, objects, entity_set):
+        entity_set = entity_set.copy()
+        for obj in self._get_entities(objects):
+            for entity in obj.entities:
+                entity_set.add(entity.class_ if isinstance(entity, Mapper) else entity)
         return entity_set
 
     def _join(self, keys, outerjoin, full, create_aliases, from_joinpoint):
         val = super()._join(keys, outerjoin, full, create_aliases, from_joinpoint)
-        val._auth_join_entities = self.update_entity_set(keys, self._auth_join_entities)
+        val._auth_join_entities = self._update_entity_set(keys, self._auth_join_entities)
         return val
 
     def _set_select_from(self, obj, set_base_alias):
         super()._set_select_from(obj, set_base_alias)
-        self._auth_from_entities = self.update_entity_set(obj, self._auth_from_entities)
+        self._auth_from_entities = self._update_entity_set(obj, self._auth_from_entities)
 
     def update(self, *args, **kwargs):
         # TODO: assert that protected attributes aren't modified?
@@ -127,7 +136,7 @@ class AuthQuery(Query):
         return super(AuthQuery, filtered).delete(*args, **kwargs)
 
     def _get_filter_entities(self):
-        filter_entities = {x['entity'] for x in self.column_descriptions if isinstance(x['entity'], DeclarativeMeta)}
+        filter_entities = set()
         if self._orm_only_from_obj_alias:
             filter_entities.update(self._auth_from_entities)
             filter_entities.update(self._auth_join_entities)

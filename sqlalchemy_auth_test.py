@@ -178,14 +178,14 @@ class TestAuthBaseFilters:
     def test_bypass(self):
         session = self.Session()
         query = session.query(self.Data)
-        assert query.count() == 6
+        assert itercount(query) == 6
 
     def test_full_object(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data)
-            assert query.count() == i
+            assert itercount(query) == i
 
     def test_partial_object(self):
         session = self.Session()
@@ -193,7 +193,7 @@ class TestAuthBaseFilters:
             session.su(user=i)
             query = session.query(self.Data.data)
             assert itercount(query) == i
-            assert query.count() == i
+            assert itercount(query) == i
 
     def test_two_partial_objects(self):
         for i in range(1, 4):
@@ -201,7 +201,7 @@ class TestAuthBaseFilters:
             session = self.Session()
             query = session.query(self.Data.data, self.Data.id)
             assert itercount(query) == i
-            assert query.count() == i
+            assert itercount(query) == i
 
     def test_mutation(self):
         for i in range(1, 4):
@@ -243,13 +243,13 @@ class TestAuthBaseFilters:
 
         # B->D
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
-        assert bvals.count() == 2  # there are 2 Bs
+        assert itercount(bvals) == 2  # there are 2 Bs
         session.su(2)
-        assert bvals.count() == 1  # one owned by user 2
+        assert itercount(bvals) == 1  # one owned by user 2
         changed = bvals.update({self.Data.data: "D"})
         assert changed == 1  # the other is not changed
         session.su(sqlalchemy_auth.ALLOW)
-        assert bvals.count() == 1
+        assert itercount(bvals) == 1
 
         # D->B
         # undo the changes we've performed.
@@ -261,13 +261,13 @@ class TestAuthBaseFilters:
         session = self.Session()
 
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
-        assert bvals.count() == 2  # there are 2 Bs
+        assert itercount(bvals) == 2  # there are 2 Bs
         changed = bvals.delete()
         assert changed == 2
         session.rollback()
 
         session.su(2)
-        assert bvals.count() == 1  # one owned by user 2
+        assert itercount(bvals) == 1  # one owned by user 2
         changed = bvals.delete()
         assert changed == 1  # the other is not changed
         session.rollback()
@@ -311,48 +311,47 @@ class TestAuthBaseFilters:
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data).slice(0, 2)
-            assert query.count() == min(i, 2)
+            assert itercount(query) == min(i, 2)
 
     def test_limit(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data).limit(2)
-            assert query.count() == min(i, 2)
+            assert itercount(query) == min(i, 2)
 
     def test_offset(self):
         for i in range(1, 4):
             self.Session.configure(user=i)
             session = self.Session()
             query = session.query(self.Data).offset(1)
-            assert query.count() == i-1
+            assert itercount(query) == i-1
 
     def test_with_session(self):
         self.Session.configure(user=1)
         session1 = self.Session()
         query = session1.query(self.Data)
-        assert query.count() == 1
+        assert itercount(query) == 1
 
         self.Session.configure(user=2)
         session2 = self.Session()
-        assert query.with_session(session2).count() == 2
+        assert itercount(query.with_session(session2)) == 2
 
-        assert query.count() == 1
+        assert itercount(query) == 1
 
     def test_select_from(self):
         session = self.Session()
         for i in range(1, 4):
             with session.su(i):
-                count1 = session.query(literal(True)).select_from(self.Data).count()
-                count2 = session.query(self.Data).count()
+                count1 = itercount(session.query(literal(True)).select_from(self.Data))
+                count2 = itercount(session.query(self.Data))
                 assert count1 == count2
                 assert count2 == i
 
 
 def itercount(query):
-    count = 0
-    for item in query.all():
-        count += 1
+    count = len(query.all())
+    assert query.count() == count
     return count
 
 
@@ -410,46 +409,6 @@ class Widget(Base, sqlalchemy_auth.AuthBase):
     company = relationship("Company", backref="widgets")
 
 
-class TestWidgets:
-    engine = create_engine('sqlite:///:memory:', echo=True)
-    Base.metadata.create_all(engine)
-
-    Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
-    Session.configure(user=sqlalchemy_auth.ALLOW)
-    session = Session()
-
-    session.add(Company(name="A"))
-    session.add(Company(name="B"))
-
-    session.add(User(company_id=1, name="userA1"))
-
-    session.add(Widget(company_id=1, name="widgetA1"))
-    session.add(Widget(company_id=1, name="widgetA2"))
-    session.add(Widget(company_id=2, name="widgetB1"))
-    session.add(Widget(company_id=2, name="widgetB2"))
-
-    session.commit()
-
-    userA1 = session.query(User).filter(User.company_id == 1, User.name == "userA1").one()
-
-    def test_orthogonal_data(self):
-        self.Session.configure(user=self.userA1)
-        session = self.Session()
-        query = (
-            session
-            .query(Widget)
-            .join(Company)
-        )
-        assert query.count() == 2
-
-    def test_select_from(self):
-        self.Session.configure(user=self.userA1)
-        session = self.Session()
-        # query = session.query(Widget).with_entities(literal(True)).select_from(Widget)
-        query = session.query(literal(True)).select_from(Widget)
-        assert query.count() == 2
-
-
 # test - auth query filters - one class, two class, join, single attributes
 class TestInteractions:
     engine = create_engine('sqlite:///:memory:')#, echo=True)
@@ -470,51 +429,62 @@ class TestInteractions:
     session.add(User(company_id=3, name="b"))
     session.add(User(company_id=3, name="c"))
 
+    session.add(Widget(company_id=1, name="widgetA1"))
+    session.add(Widget(company_id=1, name="widgetA2"))
+    session.add(Widget(company_id=2, name="widgetB1"))
+    session.add(Widget(company_id=2, name="widgetB2"))
+
     session.commit()
 
     user1a = session.query(User).filter(User.company_id == 1, User.name == "a").one()
     user2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
 
+    def test_orthogonal_class(self):
+        self.Session.configure(user=self.user1a)
+        session = self.Session()
+        query = session.query(Widget).join(Company)
+        assert itercount(query) == 2
+
     def test_state(self):
         self.Session.configure(user=sqlalchemy_auth.ALLOW)
         session = self.Session()
         query = session.query(Company)
-        assert query.count() == 3
+        assert itercount(query) == 3
         query = session.query(User)
-        assert query.count() == 6
+        assert itercount(query) == 6
 
     def test_company_filter(self):
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(User)
-        assert query.count() == 2
+        assert itercount(query) == 2
         query = session.query(Company)
-        assert query.count() == 1
+        assert itercount(query) == 1
 
     def test_join(self):
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(User.name, Company.name)
-        assert query.count() == 2
+        assert itercount(query) == 2
         query = session.query(Company.name, User.name)
-        assert query.count() == 2
-        assert 1 == query.filter(User.name == self.user2a.name).count()
+        assert itercount(query) == 2
+        assert itercount(query.filter(User.name == self.user2a.name)) == 1
 
     def test_distinct(self):
         from sqlalchemy import distinct
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(User.company_id)
-        assert query.count() == 2
+        assert itercount(query) == 2
         query = session.query(distinct(User.company_id))
-        assert query.count() == 1
+        assert itercount(query) == 1
 
     def test_max(self):
         from sqlalchemy import func
         self.Session.configure(user=self.user2a)
         session = self.Session()
         query = session.query(func.max(User.id))
-        assert query.count() == 1
+        assert itercount(query) == 1
         assert 3 == query.one()[0]
 
     def test_relationships(self):
@@ -557,7 +527,7 @@ class TestSharedResource:
         session = self.Session()
         companyA = session.query(Company).one()
         assert len(companyA.sharedresources) == 2
-        assert session.query(SharedResource).count() == 3
+        assert itercount(session.query(SharedResource)) == 3
         resourceB = session.query(SharedResource).filter_by(name="B").one()
         assert len(resourceB.companies) == 0
         resourceAB = session.query(SharedResource).filter_by(name="AB").one()
@@ -614,7 +584,7 @@ class InsertData(Base, sqlalchemy_auth.AuthBase):
 
 # test - auth query inserts
 class TestAuthBaseInserts:
-    engine = create_engine('sqlite:///:memory:')  # , echo=True)
+    engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=sqlalchemy_auth.AuthSession, query_cls=sqlalchemy_auth.AuthQuery)
