@@ -1,5 +1,4 @@
 from sqlalchemy_auth import AuthBase, ALLOW, AuthException
-from sqlalchemy_auth.utils import _Settings
 
 
 class BlockBase(AuthBase):
@@ -29,13 +28,13 @@ class BlockBase(AuthBase):
         return []
 
     def get_blocked_read_attributes(self):
-        if self._auth_settings.user is not ALLOW:
-            return self._blocked_read_attributes(self._auth_settings.user)
+        if self._session.auth_user is not ALLOW:
+            return self._blocked_read_attributes(self._session.auth_user)
         return []
 
     def get_blocked_write_attributes(self):
-        if self._auth_settings.user is not ALLOW:
-            return self._blocked_write_attributes(self._auth_settings.user)
+        if self._session.auth_user is not ALLOW:
+            return self._blocked_write_attributes(self._session.auth_user)
         return []
 
     def get_read_attributes(self):
@@ -46,10 +45,11 @@ class BlockBase(AuthBase):
         attrs = [v for v in vars(self) if not v.startswith("_")]
         return set(attrs) - set(self.get_blocked_write_attributes())
 
-    # make _auth_settings exist at all times.
+    # make _session exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
     # We set it to simplify the logic in __getattribute__
-    _auth_settings = _Settings()
+    class _session():
+        auth_user = ALLOW
     _checking_authorization = False
 
     def __getattribute__(self, name):
@@ -67,11 +67,11 @@ class BlockBase(AuthBase):
 
         # take action
         if name in blocked:
-            raise AuthException('{} may not access {} on {}'.format(self._auth_settings.user, name, self.__class__))
+            raise AuthException('{} may not access {} on {}'.format(self._session.auth_user, name, self.__class__))
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
         if name in self.get_blocked_write_attributes():
-            raise AuthException('{} may not access {} on {}'.format(self._auth_settings.user, name, self.__class__))
+            raise AuthException('{} may not access {} on {}'.format(self._session.auth_user, name, self.__class__))
         return super().__setattr__(name, value)
 

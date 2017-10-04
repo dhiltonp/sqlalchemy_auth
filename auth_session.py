@@ -1,39 +1,44 @@
 from sqlalchemy.orm import Session
 from sqlalchemy_auth import AuthException, ALLOW, DENY
-from .utils import _Settings
 
 
 class _UserContext:
+    """
+    Allows for `with session.su():` syntax.
+    """
     def __init__(self, session):
         self.session = session
-        self.auth_user = self.session._auth_settings.user
+        self.auth_user = self.session.auth_user
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.session._auth_settings.user = self.auth_user
+        self.session.auth_user = self.auth_user
 
 
 class AuthSession(Session):
     """
-    AuthSession manages user/_auth_settings and passes it to queries.
+    AuthSession manages auth_user and .
     """
-    def __init__(self, user=ALLOW, *args, **kwargs):
-        self._auth_settings = _Settings()
-        self._auth_settings.user = user
+    def __init__(self, auth_user=ALLOW, *args, **kwargs):
+        self.auth_user = auth_user
         super().__init__(*args, **kwargs)
 
-    def su(self, user=ALLOW):
+    def su(self, auth_user=ALLOW):
         context = _UserContext(self)
-        self._auth_settings.user = user
+        self.auth_user = auth_user
         return context
 
     def _save_impl(self, state):
-        if self._auth_settings.user is DENY:
+        """
+        Inject data on Session.add()
+        """
+        # tested in auth_query_test.py:TestAuthBaseInserts.add()
+        if self.auth_user is DENY:
             raise AuthException("Access is denied")
-        if self._auth_settings.user is not ALLOW:
-            state.object.add_auth_insert_data(self._auth_settings.user)
+        if self.auth_user is not ALLOW:
+            state.object.add_auth_insert_data(self.auth_user)
         super()._save_impl(state)
 
 

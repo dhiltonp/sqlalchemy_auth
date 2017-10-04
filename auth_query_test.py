@@ -34,7 +34,7 @@ class TestAuthBaseFilters:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(user=ALLOW)
+    Session.configure(auth_user=ALLOW)
     session = Session()
 
     session.add(Data(owner=1, data="A"))
@@ -52,64 +52,39 @@ class TestAuthBaseFilters:
         assert itercount(query) == 6
 
     def test_full_object(self):
+        session = self.Session()
         for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
+            session.su(i)
             query = session.query(self.Data)
             assert itercount(query) == i
 
     def test_partial_object(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(user=i)
+            session.su(i)
             query = session.query(self.Data.data)
             assert itercount(query) == i
             assert itercount(query) == i
 
     def test_two_partial_objects(self):
+        session = self.Session()
         for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
+            session.su(i)
             query = session.query(self.Data.data, self.Data.id)
             assert itercount(query) == i
             assert itercount(query) == i
 
     def test_mutation(self):
+        session = self.Session()
         for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
+            session.su(i)
             query = session.query(self.Data.data)
             statement1 = str(query.statement)
             assert itercount(query) == i
             statement2 = str(query.statement)
             assert statement1 == statement2
 
-    def test_user_change(self):
-        # Session level:
-        for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
-            query = session.query(self.Data.data)
-            assert itercount(query) == i
-
-        # session level:
-        self.Session.configure()
-        session = self.Session()
-        for i in range(1, 4):
-            session.su(user=i)
-            query = session.query(self.Data.data)
-            assert itercount(query) == i
-
-        # query level:
-        self.Session.configure()
-        session = self.Session()
-        for i in range(1, 4):
-            session.su(user=i)
-            query = session.query(self.Data.data)
-            assert itercount(query) == i
-
     def test_update(self):
-        self.Session.configure(user=ALLOW)
         session = self.Session()
 
         # B->D
@@ -128,7 +103,6 @@ class TestAuthBaseFilters:
         assert changed == 1
 
     def test_delete(self):
-        self.Session.configure(user=ALLOW)
         session = self.Session()
 
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
@@ -148,64 +122,41 @@ class TestAuthBaseFilters:
             session.query(self.Data).delete()
 
     def test_DENY(self):
-        self.Session.configure(user=DENY)
         session = self.Session()
+        session.su(DENY)
 
         with pytest.raises(AuthException):
             session.query(self.Data).all()
 
-    def test_independent_session_user(self):
-        # user is independent of sessions
-        self.Session.configure(user=2)
-        session = self.Session()
-        filter_a = session.query(self.Data).filter(self.Data.data == "A").one()
-
-        self.Session.configure(user=ALLOW)
-        session = self.Session()
-        allow_a = session.query(self.Data).filter(self.Data.data == "A", self.Data.owner == 2).one()
-
-        assert filter_a._auth_settings.user == 2
-        assert allow_a._auth_settings.user == ALLOW
-
-    def test_consistent_session_user(self):
-        self.Session.configure(user=1)
-        session = self.Session()
-        a = session.query(self.Data).filter(self.Data.data == "A").one()
-        session.su(2)
-        b = session.query(self.Data).filter(self.Data.data == "B").one()
-
-        assert a._auth_settings.user == 2
-        assert b._auth_settings.user == 2
-
     def test_slice(self):
+        session = self.Session()
         for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
+            session.su(i)
             query = session.query(self.Data).slice(0, 2)
             assert itercount(query) == min(i, 2)
 
     def test_limit(self):
+        session = self.Session()
         for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
+            session.su(i)
             query = session.query(self.Data).limit(2)
             assert itercount(query) == min(i, 2)
 
     def test_offset(self):
+        session = self.Session()
         for i in range(1, 4):
-            self.Session.configure(user=i)
-            session = self.Session()
+            session.su(i)
             query = session.query(self.Data).offset(1)
             assert itercount(query) == i-1
 
     def test_with_session(self):
-        self.Session.configure(user=1)
         session1 = self.Session()
+        session1.su(1)
         query = session1.query(self.Data)
         assert itercount(query) == 1
 
-        self.Session.configure(user=2)
         session2 = self.Session()
+        session2.su(2)
         assert itercount(query.with_session(session2)) == 2
 
         assert itercount(query) == 1
@@ -213,11 +164,11 @@ class TestAuthBaseFilters:
     def test_select_from(self):
         session = self.Session()
         for i in range(1, 4):
-            with session.su(i):
-                count1 = itercount(session.query(literal(True)).select_from(self.Data))
-                count2 = itercount(session.query(self.Data))
-                assert count1 == count2
-                assert count2 == i
+            session.su(i)
+            count1 = itercount(session.query(literal(True)).select_from(self.Data))
+            count2 = itercount(session.query(self.Data))
+            assert count1 == count2
+            assert count2 == i
 
 
 company_resource_association = Table('company_resource_association', Base.metadata,
@@ -237,8 +188,7 @@ class Company(Base, AuthBase):
 
     @classmethod
     def add_auth_filters(cls, query, user):
-        # return query.filter_by(id=user.company_id)
-        return query.filter(cls.id == user.company_id)
+        return query.filter_by(id=user.company_id)
 
 
 class User(Base, AuthBase):
@@ -251,7 +201,6 @@ class User(Base, AuthBase):
 
     @classmethod
     def add_auth_filters(cls, query, user):
-        # return query.filter_by(company=user.company)
         return query.filter(cls.company_id == user.company_id)
 
 
@@ -280,7 +229,7 @@ class TestInteractions:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(user=ALLOW)
+    Session.configure(auth_user=ALLOW)
     session = Session()
 
     session.add(Company(name="A"))
@@ -305,13 +254,12 @@ class TestInteractions:
     user2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
 
     def test_orthogonal_class(self):
-        self.Session.configure(user=self.user1a)
         session = self.Session()
+        session.su(self.user1a)
         query = session.query(Widget).join(Company)
         assert itercount(query) == 2
 
     def test_state(self):
-        self.Session.configure(user=ALLOW)
         session = self.Session()
         query = session.query(Company)
         assert itercount(query) == 3
@@ -319,16 +267,16 @@ class TestInteractions:
         assert itercount(query) == 6
 
     def test_company_filter(self):
-        self.Session.configure(user=self.user2a)
         session = self.Session()
+        session.su(self.user2a)
         query = session.query(User)
         assert itercount(query) == 2
         query = session.query(Company)
         assert itercount(query) == 1
 
     def test_join(self):
-        self.Session.configure(user=self.user2a)
         session = self.Session()
+        session.su(self.user2a)
         query = session.query(User.name, Company.name)
         assert itercount(query) == 2
         query = session.query(Company.name, User.name)
@@ -337,8 +285,8 @@ class TestInteractions:
 
     def test_distinct(self):
         from sqlalchemy import distinct
-        self.Session.configure(user=self.user2a)
         session = self.Session()
+        session.su(self.user2a)
         query = session.query(User.company_id)
         assert itercount(query) == 2
         query = session.query(distinct(User.company_id))
@@ -346,8 +294,8 @@ class TestInteractions:
 
     def test_max(self):
         from sqlalchemy import func
-        self.Session.configure(user=self.user2a)
         session = self.Session()
+        session.su(self.user2a)
         query = session.query(func.max(User.id))
         assert itercount(query) == 1
         assert 3 == query.one()[0]
@@ -363,7 +311,7 @@ class TestSharedResource:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(user=ALLOW)
+    Session.configure(auth_user=ALLOW)
     session = Session()
 
     companyA = Company(name="A")
@@ -388,7 +336,7 @@ class TestSharedResource:
     session.commit()
 
     def test_shared_resource(self):
-        self.Session.configure(user=self.userA)
+        self.Session.configure(auth_user=self.userA)
         session = self.Session()
         companyA = session.query(Company).one()
         assert len(companyA.sharedresources) == 2
@@ -416,7 +364,7 @@ class TestAuthBaseInserts:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(user=ALLOW)
+    Session.configure(auth_user=ALLOW)
     session = Session()
 
     def test_add(self):

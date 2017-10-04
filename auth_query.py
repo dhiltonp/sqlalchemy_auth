@@ -8,7 +8,7 @@ from sqlalchemy_auth import AuthException, ALLOW, DENY
 class AuthQuery(Query):
     """
     AuthQuery modifies query generation to add implicit filters as needed.
-    It also sets user/_auth_settings on returned objects.
+    It also sets _session on returned objects.
     """
     def __init__(self, entities, session=None):
         super().__init__(entities=entities, session=session)
@@ -32,7 +32,7 @@ class AuthQuery(Query):
             #  (count, for example).
             # Assuming it's an uncommon occurrence, we'll try/accept (test this later)
             try:
-                row._auth_settings = self.session._auth_settings
+                row._session = self.session
             except AttributeError:
                 pass
             yield row
@@ -82,7 +82,7 @@ class AuthQuery(Query):
         return filter_entities
 
     def _add_auth_filters(self):
-        if self.session._auth_settings.user is DENY:
+        if self.session.auth_user is DENY:
             raise AuthException("Access is denied")
 
         try:
@@ -92,11 +92,11 @@ class AuthQuery(Query):
             return self
 
         filtered = self.enable_assertions(False)
-        if self.session._auth_settings.user is not ALLOW:
+        if self.session.auth_user is not ALLOW:
             for class_ in self._get_filter_entities():
                 # setting _select_from_entity allows filter_by(id=...) to target class_'s entity inside of
                 #  add_auth_filters when doing a join
                 filtered._select_from_entity = class_.__mapper__
-                filtered = class_.add_auth_filters(filtered, self.session._auth_settings.user)
+                filtered = class_.add_auth_filters(filtered, self.session.auth_user)
 
         return filtered
