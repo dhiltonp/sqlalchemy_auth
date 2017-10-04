@@ -4,15 +4,15 @@ from .utils import _Settings
 
 
 class _UserContext:
-    def __init__(self, settings):
-        self._settings = settings
-        self._user = self._settings.user
+    def __init__(self, session):
+        self.session = session
+        self.auth_user = self.session._auth_settings.user
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._settings.user = self._user
+        self.session._auth_settings.user = self.auth_user
 
 
 class AuthSession(Session):
@@ -25,7 +25,7 @@ class AuthSession(Session):
         super().__init__(*args, **kwargs)
 
     def su(self, user=ALLOW):
-        context = _UserContext(self._auth_settings)
+        context = _UserContext(self)
         self._auth_settings.user = user
         return context
 
