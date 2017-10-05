@@ -9,32 +9,32 @@ class BlockBase(AuthBase):
     _blocked_read_attributes or _blocked_write_attributes.
     """
 
-    def _blocked_read_attributes(self, user):
+    def _blocked_read_attributes(self, badge):
         """
         Override this method to block read access to attributes, but use
         the get_* methods for access.
 
-        Only called if user != ALLOW.
+        Only called if badge != ALLOW.
         """
         return []
 
-    def _blocked_write_attributes(self, user):
+    def _blocked_write_attributes(self, badge):
         """
         Override this method to block write access to attributes, but use
         the get_* methods for access.
 
-        Only called if user != ALLOW.
+        Only called if badge != ALLOW.
         """
         return []
 
     def get_blocked_read_attributes(self):
-        if self._session.auth_user is not ALLOW:
-            return self._blocked_read_attributes(self._session.auth_user)
+        if self._session.badge is not ALLOW:
+            return self._blocked_read_attributes(self._session.badge)
         return []
 
     def get_blocked_write_attributes(self):
-        if self._session.auth_user is not ALLOW:
-            return self._blocked_write_attributes(self._session.auth_user)
+        if self._session.badge is not ALLOW:
+            return self._blocked_write_attributes(self._session.badge)
         return []
 
     def get_read_attributes(self):
@@ -49,7 +49,7 @@ class BlockBase(AuthBase):
     #  This matters because sqlalchemy does some magic before __init__ is called.
     # We set it to simplify the logic in __getattribute__
     class _session():
-        auth_user = ALLOW
+        badge = ALLOW
     _checking_authorization = False
 
     def __getattribute__(self, name):
@@ -67,11 +67,11 @@ class BlockBase(AuthBase):
 
         # take action
         if name in blocked:
-            raise AuthException('{} may not access {} on {}'.format(self._session.auth_user, name, self.__class__))
+            raise AuthException('{} may not access {} on {}'.format(self._session.badge, name, self.__class__))
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
         if name in self.get_blocked_write_attributes():
-            raise AuthException('{} may not access {} on {}'.format(self._session.auth_user, name, self.__class__))
+            raise AuthException('{} may not access {} on {}'.format(self._session.badge, name, self.__class__))
         return super().__setattr__(name, value)
 

@@ -27,14 +27,14 @@ class TestAuthBaseFilters:
         data = Column(String)
 
         @classmethod
-        def add_auth_filters(cls, query, user):
-            return query.filter(cls.owner == user)
+        def add_auth_filters(cls, query, badge):
+            return query.filter(cls.owner == badge)
 
     engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(auth_user=ALLOW)
+    Session.configure(badge=ALLOW)
     session = Session()
 
     session.add(Data(owner=1, data="A"))
@@ -54,14 +54,14 @@ class TestAuthBaseFilters:
     def test_full_object(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data)
             assert itercount(query) == i
 
     def test_partial_object(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data.data)
             assert itercount(query) == i
             assert itercount(query) == i
@@ -69,7 +69,7 @@ class TestAuthBaseFilters:
     def test_two_partial_objects(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data.data, self.Data.id)
             assert itercount(query) == i
             assert itercount(query) == i
@@ -77,7 +77,7 @@ class TestAuthBaseFilters:
     def test_mutation(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data.data)
             statement1 = str(query.statement)
             assert itercount(query) == i
@@ -90,11 +90,11 @@ class TestAuthBaseFilters:
         # B->D
         bvals = session.query(self.Data.data).filter(self.Data.data == "B")
         assert itercount(bvals) == 2  # there are 2 Bs
-        session.su(2)
-        assert itercount(bvals) == 1  # one owned by user 2
+        session.badge = 2
+        assert itercount(bvals) == 1  # one owned by badge 2
         changed = bvals.update({self.Data.data: "D"})
         assert changed == 1  # the other is not changed
-        session.su(ALLOW)
+        session.badge = ALLOW
         assert itercount(bvals) == 1
 
         # D->B
@@ -111,19 +111,19 @@ class TestAuthBaseFilters:
         assert changed == 2
         session.rollback()
 
-        session.su(2)
-        assert itercount(bvals) == 1  # one owned by user 2
+        session.badge = 2
+        assert itercount(bvals) == 1  # one owned by badge 2
         changed = bvals.delete()
         assert changed == 1  # the other is not changed
         session.rollback()
 
-        session.su(DENY)
+        session.badge = DENY
         with pytest.raises(AuthException):
             session.query(self.Data).delete()
 
     def test_DENY(self):
         session = self.Session()
-        session.su(DENY)
+        session.badge = DENY
 
         with pytest.raises(AuthException):
             session.query(self.Data).all()
@@ -131,32 +131,32 @@ class TestAuthBaseFilters:
     def test_slice(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data).slice(0, 2)
             assert itercount(query) == min(i, 2)
 
     def test_limit(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data).limit(2)
             assert itercount(query) == min(i, 2)
 
     def test_offset(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             query = session.query(self.Data).offset(1)
             assert itercount(query) == i-1
 
     def test_with_session(self):
         session1 = self.Session()
-        session1.su(1)
+        session1.badge = 1
         query = session1.query(self.Data)
         assert itercount(query) == 1
 
         session2 = self.Session()
-        session2.su(2)
+        session2.badge = 2
         assert itercount(query.with_session(session2)) == 2
 
         assert itercount(query) == 1
@@ -164,7 +164,7 @@ class TestAuthBaseFilters:
     def test_select_from(self):
         session = self.Session()
         for i in range(1, 4):
-            session.su(i)
+            session.badge = i
             count1 = itercount(session.query(literal(True)).select_from(self.Data))
             count2 = itercount(session.query(self.Data))
             assert count1 == count2
@@ -181,27 +181,27 @@ class Company(Base, AuthBase):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    users = relationship("User")
+    badges = relationship("User")
     sharedresources = relationship("SharedResource",
                                    secondary=company_resource_association,
                                    back_populates="companies")
 
     @classmethod
-    def add_auth_filters(cls, query, user):
-        return query.filter_by(id=user.company_id)
+    def add_auth_filters(cls, query, badge):
+        return query.filter_by(id=badge.company_id)
 
 
 class User(Base, AuthBase):
-    __tablename__ = "user"
+    __tablename__ = "badge"
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
     company_id = Column(Integer, ForeignKey('company.id'))
-    company = relationship("Company", back_populates="users")
+    company = relationship("Company", back_populates="badges")
 
     @classmethod
-    def add_auth_filters(cls, query, user):
-        return query.filter(cls.company_id == user.company_id)
+    def add_auth_filters(cls, query, badge):
+        return query.filter(cls.company_id == badge.company_id)
 
 
 class SharedResource(Base, AuthBase):
@@ -229,7 +229,7 @@ class TestInteractions:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(auth_user=ALLOW)
+    Session.configure(badge=ALLOW)
     session = Session()
 
     session.add(Company(name="A"))
@@ -250,12 +250,12 @@ class TestInteractions:
 
     session.commit()
 
-    user1a = session.query(User).filter(User.company_id == 1, User.name == "a").one()
-    user2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
+    badge1a = session.query(User).filter(User.company_id == 1, User.name == "a").one()
+    badge2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
 
     def test_orthogonal_class(self):
         session = self.Session()
-        session.su(self.user1a)
+        session.badge = self.badge1a
         query = session.query(Widget).join(Company)
         assert itercount(query) == 2
 
@@ -268,7 +268,7 @@ class TestInteractions:
 
     def test_company_filter(self):
         session = self.Session()
-        session.su(self.user2a)
+        session.badge = self.badge2a
         query = session.query(User)
         assert itercount(query) == 2
         query = session.query(Company)
@@ -276,17 +276,17 @@ class TestInteractions:
 
     def test_join(self):
         session = self.Session()
-        session.su(self.user2a)
+        session.badge = self.badge2a
         query = session.query(User.name, Company.name)
         assert itercount(query) == 2
         query = session.query(Company.name, User.name)
         assert itercount(query) == 2
-        assert itercount(query.filter(User.name == self.user2a.name)) == 1
+        assert itercount(query.filter(User.name == self.badge2a.name)) == 1
 
     def test_distinct(self):
         from sqlalchemy import distinct
         session = self.Session()
-        session.su(self.user2a)
+        session.badge = self.badge2a
         query = session.query(User.company_id)
         assert itercount(query) == 2
         query = session.query(distinct(User.company_id))
@@ -295,15 +295,15 @@ class TestInteractions:
     def test_max(self):
         from sqlalchemy import func
         session = self.Session()
-        session.su(self.user2a)
+        session.badge = self.badge2a
         query = session.query(func.max(User.id))
         assert itercount(query) == 1
         assert 3 == query.one()[0]
 
     def test_relationships(self):
-        assert self.user1a.company.id == 1
-        assert self.user1a.company.users[0] == self.user1a
-        assert len(self.user2a.company.users) == 2
+        assert self.badge1a.company.id == 1
+        assert self.badge1a.company.badges[0] == self.badge1a
+        assert len(self.badge2a.company.badges) == 2
 
 
 class TestSharedResource:
@@ -311,7 +311,7 @@ class TestSharedResource:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(auth_user=ALLOW)
+    Session.configure(badge=ALLOW)
     session = Session()
 
     companyA = Company(name="A")
@@ -320,10 +320,10 @@ class TestSharedResource:
     session.add(companyB)
     session.commit()
 
-    userA = User(name="a", company_id=companyA.id)
-    userB = User(name="a", company_id=companyB.id)
-    session.add(userA)
-    session.add(userB)
+    badgeA = User(name="a", company_id=companyA.id)
+    badgeB = User(name="a", company_id=companyB.id)
+    session.add(badgeA)
+    session.add(badgeB)
 
     resourceA = SharedResource(name="A")
     resourceA.companies.append(companyA)
@@ -336,7 +336,7 @@ class TestSharedResource:
     session.commit()
 
     def test_shared_resource(self):
-        self.Session.configure(auth_user=self.userA)
+        self.Session.configure(badge=self.badgeA)
         session = self.Session()
         companyA = session.query(Company).one()
         assert len(companyA.sharedresources) == 2
@@ -354,8 +354,8 @@ class InsertData(Base, AuthBase):
     owner = Column(Integer)
     data = Column(String)
 
-    def add_auth_insert_data(self, user):
-        self.owner = user
+    def add_auth_insert_data(self, badge):
+        self.owner = badge
 
 
 # test - auth query inserts
@@ -364,31 +364,31 @@ class TestAuthBaseInserts:
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(auth_user=ALLOW)
+    Session.configure(badge=ALLOW)
     session = Session()
 
     def test_add(self):
         session = self.Session()
-        with session.su(10):
+        with session.switch_badge(10):
             obj = InsertData(data="Insert")
             session.add(obj)
             session.commit()
             assert obj.owner == 10
 
-        with session.su():
+        with session.switch_badge():
             obj = session.query(InsertData).filter(InsertData.owner == 10).one()
-            obj.data = "SU Update"
+            obj.data = "ALLOW Update"
             session.commit()
-            assert obj.data == "SU Update"
+            assert obj.data == "ALLOW Update"
             assert obj.owner == 10
 
-        with session.su(10):
+        with session.switch_badge(10):
             obj = session.query(InsertData).filter(InsertData.owner == 10).one()
             obj.data = "Owner Update"
             session.commit()
             assert obj.data == "Owner Update"
 
-        with session.su(20):
+        with session.switch_badge(20):
             obj.data = "Non-owner Update"
             session.add(obj)
             session.commit()

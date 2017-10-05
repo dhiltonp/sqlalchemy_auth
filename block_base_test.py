@@ -19,10 +19,10 @@ class TestAuthBaseAttributes:
         blocked_write = Column(String)
         blocked_both = Column(String)
 
-        def _blocked_read_attributes(self, user):
+        def _blocked_read_attributes(self, badge):
             return ["blocked_read", "blocked_both"]
 
-        def _blocked_write_attributes(self, user):
+        def _blocked_write_attributes(self, badge):
             return ["blocked_write", "blocked_both"]
 
     def create_blocked_data(self):
@@ -30,7 +30,7 @@ class TestAuthBaseAttributes:
         Base.metadata.create_all(engine)
 
         Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-        Session.configure(auth_user=ALLOW)
+        Session.configure(badge=ALLOW)
         session = Session()
 
         session.add(self.BlockedData(allowed_data="This is ok", blocked_read="do not allow reads",
@@ -42,53 +42,53 @@ class TestAuthBaseAttributes:
     def test_allowed(self):
         blocked_data = self.create_blocked_data()
         # ALLOW access
-        blocked_data._session.auth_user = ALLOW
+        blocked_data._session.badge = ALLOW
         val = blocked_data.allowed_data
         blocked_data.allowed_data = val
 
         # _auth_settings is set, blocks active
-        blocked_data._session.auth_user = 1
+        blocked_data._session.badge = 1
         val = blocked_data.allowed_data
         blocked_data.allowed_data = val
 
     def test_blocked_read(self):
         blocked_data = self.create_blocked_data()
-        blocked_data._session.auth_user = ALLOW
+        blocked_data._session.badge = ALLOW
         val = blocked_data.blocked_read
         blocked_data.blocked_read = val
 
-        blocked_data._session.auth_user = 1
+        blocked_data._session.badge = 1
         with pytest.raises(AuthException):
             val = blocked_data.blocked_read
         blocked_data.blocked_read = val
 
     def test_blocked_write(self):
         blocked_data = self.create_blocked_data()
-        blocked_data._session.auth_user = ALLOW
+        blocked_data._session.badge = ALLOW
         val = blocked_data.blocked_write
         blocked_data.blocked_write = val
 
-        blocked_data._session.auth_user = 1
+        blocked_data._session.badge = 1
         val = blocked_data.blocked_write
         with pytest.raises(AuthException):
             blocked_data.blocked_write = "value"
 
-        blocked_data._session.auth_user = 1
+        blocked_data._session.badge = 1
         assert blocked_data.blocked_write != "value"
 
     def test_blocked_both(self):
         blocked_data = self.create_blocked_data()
-        blocked_data._session.user = ALLOW
+        blocked_data._session.badge = ALLOW
         val = blocked_data.blocked_both
         blocked_data.blocked_both = val
 
-        blocked_data._session.auth_user = 1
+        blocked_data._session.badge = 1
         with pytest.raises(AuthException):
             val = blocked_data.blocked_both
         with pytest.raises(AuthException):
             blocked_data.blocked_both = "value"
 
-        blocked_data._session.auth_user = ALLOW
+        blocked_data._session.badge = ALLOW
         assert blocked_data.blocked_write != "value"
 
 
@@ -101,10 +101,10 @@ class TestGetAttributes:
         data = Column(String)
         secret = Column(String)
 
-        def _blocked_read_attributes(self, user):
+        def _blocked_read_attributes(self, badge):
             return ["secret"]
 
-        def _blocked_write_attributes(self, user):
+        def _blocked_write_attributes(self, badge):
             return ["id", "owner"]
 
     def create_attribute_check(self):
@@ -112,7 +112,7 @@ class TestGetAttributes:
         Base.metadata.create_all(engine)
 
         Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-        Session.configure(auth_user=1)
+        Session.configure(badge=1)
         session = Session()
 
         session.add(self.AttributeCheck(owner="alice", data="bicycle", secret="clover"))

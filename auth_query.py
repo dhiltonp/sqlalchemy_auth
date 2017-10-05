@@ -26,6 +26,7 @@ class AuthQuery(Query):
         return self._compile_context_retval
 
     def _execute_and_instances(self, querycontext):
+        # Required for BlockBase - move to BlockSession?
         instances_generator = super()._execute_and_instances(querycontext)
         for row in instances_generator:
             # all queries come through here - including ones that don't return model instances
@@ -82,7 +83,7 @@ class AuthQuery(Query):
         return filter_entities
 
     def _add_auth_filters(self):
-        if self.session.auth_user is DENY:
+        if self.session.badge is DENY:
             raise AuthException("Access is denied")
 
         try:
@@ -92,11 +93,11 @@ class AuthQuery(Query):
             return self
 
         filtered = self.enable_assertions(False)
-        if self.session.auth_user is not ALLOW:
+        if self.session.badge is not ALLOW:
             for class_ in self._get_filter_entities():
                 # setting _select_from_entity allows filter_by(id=...) to target class_'s entity inside of
                 #  add_auth_filters when doing a join
                 filtered._select_from_entity = class_.__mapper__
-                filtered = class_.add_auth_filters(filtered, self.session.auth_user)
+                filtered = class_.add_auth_filters(filtered, self.session.badge)
 
         return filtered

@@ -8,17 +8,17 @@ class AuthBase:
 
     or
 
-        Base = declarative_base(cls=sqlalchemy_auth.AuthBase)
+        Base = declarative_base(cls=AuthBase)
     """
     @classmethod
-    def add_auth_filters(cls, query, user):
+    def add_auth_filters(cls, query, badge):
         """
         Override this to add implicit filters to a query, before any additional
         filters are added.
         """
         return query
 
-    def add_auth_insert_data(self, user):
+    def add_auth_insert_data(self, badge):
         """
         Override this to assign implicit values to a new object (for example,
         via Session.add(Base()))

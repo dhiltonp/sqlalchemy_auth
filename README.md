@@ -4,11 +4,11 @@ sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
 
 It is easy to use, and easy to bypass. 
 
-1. You set a `user` on a session, and receive a `user` within a query.
+1. You set a `badge` on a session, and receive a `badge` within a query.
 2. All mapped classes can add implicit filters on queries and implicit data on inserts.
 3. All mapped classes can selectively block attribute access.
 
-`user` is shared between all queries and mapped class instances within a session.
+Your `badge` is shared between all queries and mapped class instances within a session.
 
 # Getting Started
 
@@ -17,23 +17,26 @@ It is easy to use, and easy to bypass.
 Create a session using the AuthSession and AuthQuery classes:
 
 ```python
-Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery, user=DENY)
+Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery, badge=DENY)
 session = Session()
 ```
 
-By default `user` is set to `ALLOW`, bypassing all auth mechanisms. Change `user`
-to enable authorization:
+By default you don't need no stinking `badge`. It is set to `ALLOW`, bypassing all auth mechanisms. Change `badge`
+from `ALLOW` to enable authorization:
 
 ```python
-session.su(user)
+session.badge=badge
 ```
 
-Temporarily change `user`:
+Temporarily switch `badge`:
 
 ```python
-with session.su(ALLOW):
+with session.switch_badge(badge):
     ...
 ```
+
+`badge` can be anything (the current user, their role, etc.), and will be passed in to 
+`add_auth_filters` or `add_auth_insert_data` (unless it's `ALLOW` or `DENY`).
 
 ### Filters
 
@@ -48,8 +51,8 @@ class Data(Base):
     data = Column(String)
 
     @classmethod
-    def add_auth_filters(cls, query, user):
-        return query.filter_by(owner=user.id)
+    def add_auth_filters(cls, query, badge):
+        return query.filter_by(owner=badge.user_id)
 ```
 
 ### Inserts
@@ -64,17 +67,22 @@ class Data(Base):
     owner = Column(Integer)
     data = Column(String)
 
-    def add_auth_insert_data(self, user):
-        self.owner = user.id
+    def add_auth_insert_data(self, badge):
+        self.owner = badge.user_id
 ```
+
+### Default Filters and Inserts
+
+If your `Base` inherits from `AuthBase`, you will inherit no-op `add_auth_filters` 
+and `add_auth_insert_data` methods.
 
 ### Attribute Blocking
 
-To block attributes, inherit from the AuthBase class (you can also use
-mixins instead of `declarative_base(cls=AuthBase)`):
+To block attributes, inherit from the `BlockBase` class (you can also use
+mixins instead of `declarative_base(cls=BlockBase)`):
 
 ```python
-Base = declarative_base(cls=AuthBase)
+Base = declarative_base(cls=BlockBase)
 
 class AttributeCheck(Base):
     __tablename__ = "attributecheck"
@@ -84,10 +92,12 @@ class AttributeCheck(Base):
     data = Column(String)
     secret = Column(String)
 
-    def _blocked_read_attributes(self, user):
+    def _blocked_read_attributes(self, badge):
+        if self.owner == badge.user_id:
+            return []
         return ["secret"]
 
-    def _blocked_write_attributes(self, user):
+    def _blocked_write_attributes(self, badge):
         return ["id", "owner"]
 ```
 
@@ -102,15 +112,15 @@ Attribute blocking is only effective for instances of the mapped class.
 
 ### One User per Session/Query/Objects Group
 
-Only one user exists between a session, its queries and returned objects.
+Only one badge exists between a session, its queries and returned objects.
 For example:
 
 ```python
-session.su(ALLOW)
+session.badge = ALLOW
 query = session.query(Data)
 unfiltered = query.all()
 
-session.su(user)
+session.badge = badge
 filtered = query.all()
 ```
 
@@ -119,11 +129,11 @@ query later would return a `filtered` subset.
 
 ### Scoped Session Usage
 
-To support `scoped_session.query` style syntax with `su`, you must run
+To support `scoped_session.query` style syntax with `badge` and `switch_badge`, you must run
 `instrument_scoped_session` on the value returned by `sqlalchemy.orm.scoped_session()`.
 
-If you do not, you will receive `AttributeError: 'scoped_session' object has
-no attribute 'su'`.
+If you do not, setting `badge` will have no effect and calling `switch_badge` you will receive `AttributeError: 'scoped_session' object has
+no attribute 'switch_badge'`.
 
 ### Attribute Blocking Limitations
 
