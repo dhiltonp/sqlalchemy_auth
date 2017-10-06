@@ -2,7 +2,7 @@ from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Query, Mapper
 from sqlalchemy.orm.query import _QueryEntity
 
-from sqlalchemy_auth import AuthException, ALLOW, DENY
+from sqlalchemy_auth import AuthException, BlockBase, ALLOW, DENY
 
 
 class AuthQuery(Query):
@@ -26,16 +26,11 @@ class AuthQuery(Query):
         return self._compile_context_retval
 
     def _execute_and_instances(self, querycontext):
-        # Required for BlockBase - move to BlockSession?
+        # Required for BlockBase
         instances_generator = super()._execute_and_instances(querycontext)
         for row in instances_generator:
-            # all queries come through here - including ones that don't return model instances
-            #  (count, for example).
-            # Assuming it's an uncommon occurrence, we'll try/accept (test this later)
-            try:
+            if isinstance(row, BlockBase):
                 row._session = self.session
-            except AttributeError:
-                pass
             yield row
 
     def _get_entities(self, objects):
