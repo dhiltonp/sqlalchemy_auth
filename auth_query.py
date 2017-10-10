@@ -35,7 +35,8 @@ class AuthQuery(Query):
                 row._session = self.session
             yield row
 
-    def _get_entities(self, objects):
+    @staticmethod
+    def _get_entities(objects):
         """
         copy Query._set_entities() behaviour providing dummy instance for
         entities to accumulate on via entity_wrapper side effect
@@ -61,10 +62,9 @@ class AuthQuery(Query):
                     raise AuthException("Unknown entity type:", entity)
         return entity_set
 
-    def _join(self, keys, outerjoin, full, create_aliases, from_joinpoint):
-        val = super()._join(keys, outerjoin, full, create_aliases, from_joinpoint)
-        val._auth_join_entities = self._update_entity_set(keys, self._auth_join_entities)
-        return val
+    def _join_to_left(self, l_info, left, right, onclause, outerjoin, full):
+        super()._join_to_left(l_info, left, right, onclause, outerjoin, full)
+        self._auth_join_entities = self._update_entity_set([right], self._auth_join_entities)
 
     def _set_select_from(self, obj, set_base_alias):
         super()._set_select_from(obj, set_base_alias)
