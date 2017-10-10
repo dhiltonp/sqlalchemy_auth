@@ -1,6 +1,8 @@
 from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.orm import Query, Mapper
 from sqlalchemy.orm.query import _QueryEntity
+from sqlalchemy.orm.util import AliasedInsp, AliasedClass
 
 from sqlalchemy_auth import AuthException, BlockBase, ALLOW, DENY
 
@@ -49,7 +51,14 @@ class AuthQuery(Query):
         entity_set = entity_set.copy()
         for obj in self._get_entities(objects):
             for entity in obj.entities:
-                entity_set.add(entity.class_ if isinstance(entity, Mapper) else entity)
+                if isinstance(entity, Mapper):
+                    entity_set.add(entity.class_)
+                elif isinstance(entity, AliasedInsp):
+                   entity_set.add(entity.entity)
+                elif isinstance(entity, DeclarativeMeta) or isinstance(entity, AliasedClass):
+                    entity_set.add(entity)
+                else:
+                    raise AuthException("Unknown entity type:", entity)
         return entity_set
 
     def _join(self, keys, outerjoin, full, create_aliases, from_joinpoint):

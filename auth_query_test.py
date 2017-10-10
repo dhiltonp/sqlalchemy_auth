@@ -4,7 +4,7 @@ from sqlalchemy_auth import AuthSession, AuthQuery, AuthBase, AuthException, ALL
 
 from sqlalchemy import create_engine, ForeignKey, Table, literal
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, aliased
 from sqlalchemy import Column, Integer, String
 
 
@@ -257,6 +257,15 @@ class TestInteractions:
         session = self.Session()
         session.badge = self.badge1a
         query = session.query(Widget).join(Company)
+        assert itercount(query) == 2
+
+    def test_aliased_class_in_from(self):
+        session = self.Session()
+
+        session.badge = self.badge1a
+        employer = aliased(Company, name='employer')
+        query = session.query(Widget, employer.name).join(employer)
+
         assert itercount(query) == 2
 
     def test_state(self):
