@@ -132,7 +132,7 @@ query later would return a `filtered` subset.
 To support `scoped_session.query` style syntax with `badge` and `switch_badge`, you must run
 `instrument_scoped_session` on the value returned by `sqlalchemy.orm.scoped_session()`.
 
-If you do not, setting `badge` will have no effect and calling `switch_badge` you will receive `AttributeError: 'scoped_session' object has
+If you do not, setting `badge` will have no effect and calling `switch_badge` will raise `AttributeError: 'scoped_session' object has
 no attribute 'switch_badge'`.
 
 ### Attribute Blocking Limitations
