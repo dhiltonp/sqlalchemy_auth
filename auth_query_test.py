@@ -17,27 +17,42 @@ def itercount(query):
     return count
 
 
+class Data(Base):
+    __tablename__ = 'data'
+
+    id = Column(Integer, primary_key=True)
+    owner = Column(Integer)
+    data = Column(String)
+
+    @classmethod
+    def add_auth_filters(cls, query, badge):
+        return query.filter(cls.owner == badge)
+
+
+class Siloed_Data(Base):
+    __tablename__ = 'siloed_data'
+
+    id = Column(Integer, primary_key=True)
+    data_id = Column(Integer, ForeignKey('data.id'))
+    silo = Column(Integer)
+
+    data = relationship(Data, backref='siloed_data')
+
+    @classmethod
+    def add_auth_filters(cls, query, badge):
+        return query.filter(cls.silo == badge)
+
+
 # test - auth query filters - one class, two class, single attributes
 class TestAuthBaseFilters:
-    class Data(Base, AuthBase):
-        __tablename__ = "data"
-
-        id = Column(Integer, primary_key=True)
-        owner = Column(Integer)
-        data = Column(String)
-
-        @classmethod
-        def add_auth_filters(cls, query, badge):
-            return query.filter(cls.owner == badge)
-
-    engine = create_engine('sqlite:///:memory:')#, echo=True)
+    engine = create_engine('sqlite:///:memory:', echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
     Session.configure(badge=ALLOW)
     session = Session()
 
-    session.add(Data(owner=1, data="A"))
+    session.add(Data(owner=1, data="A", siloed_data=[Siloed_Data(silo=x) for x in range(3)]))
     session.add(Data(owner=2, data="A"))
     session.add(Data(owner=2, data="B"))
     session.add(Data(owner=3, data="A"))
@@ -46,23 +61,29 @@ class TestAuthBaseFilters:
 
     session.commit()
 
+    def test_implicit_siloed_data(self):
+        session = self.Session()
+        with session.switch_badge(1):
+            data = session.query(Data).filter(Data.owner == 1).one()
+            assert len(data.siloed_data) == 1
+
     def test_bypass(self):
         session = self.Session()
-        query = session.query(self.Data)
+        query = session.query(Data)
         assert itercount(query) == 6
 
     def test_full_object(self):
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data)
+            query = session.query(Data)
             assert itercount(query) == i
 
     def test_partial_object(self):
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data.data)
+            query = session.query(Data.data)
             assert itercount(query) == i
             assert itercount(query) == i
 
@@ -70,7 +91,7 @@ class TestAuthBaseFilters:
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data.data, self.Data.id)
+            query = session.query(Data.data, Data.id)
             assert itercount(query) == i
             assert itercount(query) == i
 
@@ -78,7 +99,7 @@ class TestAuthBaseFilters:
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data.data)
+            query = session.query(Data.data)
             statement1 = str(query.statement)
             assert itercount(query) == i
             statement2 = str(query.statement)
@@ -88,24 +109,24 @@ class TestAuthBaseFilters:
         session = self.Session()
 
         # B->D
-        bvals = session.query(self.Data.data).filter(self.Data.data == "B")
+        bvals = session.query(Data.data).filter(Data.data == "B")
         assert itercount(bvals) == 2  # there are 2 Bs
         session.badge = 2
         assert itercount(bvals) == 1  # one owned by badge 2
-        changed = bvals.update({self.Data.data: "D"})
+        changed = bvals.update({Data.data: "D"})
         assert changed == 1  # the other is not changed
         session.badge = ALLOW
         assert itercount(bvals) == 1
 
         # D->B
         # undo the changes we've performed.
-        changed = session.query(self.Data.data).filter(self.Data.data == "D").update({self.Data.data: "B"})
+        changed = session.query(Data.data).filter(Data.data == "D").update({Data.data: "B"})
         assert changed == 1
 
     def test_delete(self):
         session = self.Session()
 
-        bvals = session.query(self.Data.data).filter(self.Data.data == "B")
+        bvals = session.query(Data.data).filter(Data.data == "B")
         assert itercount(bvals) == 2  # there are 2 Bs
         changed = bvals.delete()
         assert changed == 2
@@ -119,40 +140,40 @@ class TestAuthBaseFilters:
 
         session.badge = DENY
         with pytest.raises(AuthException):
-            session.query(self.Data).delete()
+            session.query(Data).delete()
 
     def test_DENY(self):
         session = self.Session()
         session.badge = DENY
 
         with pytest.raises(AuthException):
-            session.query(self.Data).all()
+            session.query(Data).all()
 
     def test_slice(self):
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data).slice(0, 2)
+            query = session.query(Data).slice(0, 2)
             assert itercount(query) == min(i, 2)
 
     def test_limit(self):
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data).limit(2)
+            query = session.query(Data).limit(2)
             assert itercount(query) == min(i, 2)
 
     def test_offset(self):
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            query = session.query(self.Data).offset(1)
+            query = session.query(Data).offset(1)
             assert itercount(query) == i-1
 
     def test_with_session(self):
         session1 = self.Session()
         session1.badge = 1
-        query = session1.query(self.Data)
+        query = session1.query(Data)
         assert itercount(query) == 1
 
         session2 = self.Session()
@@ -165,8 +186,8 @@ class TestAuthBaseFilters:
         session = self.Session()
         for i in range(1, 4):
             session.badge = i
-            count1 = itercount(session.query(literal(True)).select_from(self.Data))
-            count2 = itercount(session.query(self.Data))
+            count1 = itercount(session.query(literal(True)).select_from(Data))
+            count2 = itercount(session.query(Data))
             assert count1 == count2
             assert count2 == i
 
@@ -176,7 +197,7 @@ company_resource_association = Table('company_resource_association', Base.metada
                                      Column('resource_id', Integer, ForeignKey('sharedresource.id')))
 
 
-class Company(Base, AuthBase):
+class Company(Base):
     __tablename__ = "company"
 
     id = Column(Integer, primary_key=True)
@@ -191,7 +212,7 @@ class Company(Base, AuthBase):
         return query.filter_by(id=badge.company_id)
 
 
-class User(Base, AuthBase):
+class User(Base):
     __tablename__ = "badge"
 
     id = Column(Integer, primary_key=True)
@@ -204,7 +225,7 @@ class User(Base, AuthBase):
         return query.filter(cls.company_id == badge.company_id)
 
 
-class SharedResource(Base, AuthBase):
+class SharedResource(Base):
     __tablename__ = "sharedresource"
 
     id = Column(Integer, primary_key=True)
@@ -214,7 +235,7 @@ class SharedResource(Base, AuthBase):
                              back_populates="sharedresources")
 
 
-class Widget(Base, AuthBase):
+class Widget(Base):
     __tablename__ = "widget"
 
     id = Column(Integer, primary_key=True)
@@ -356,7 +377,7 @@ class TestSharedResource:
         assert len(resourceAB.companies) == 1
 
 
-class InsertData(Base, AuthBase):
+class InsertData(Base):
     __tablename__ = "data2"
 
     id = Column(Integer, primary_key=True)
