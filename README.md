@@ -153,4 +153,4 @@ query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
 
 --------------------------
 
-See sqlalchemy_auth_test.py for full examples.
+See auth_query_test.py for end-to-end examples.
