@@ -29,20 +29,6 @@ class Data(Base):
         return query.filter(cls.owner == badge)
 
 
-class Siloed_Data(Base):
-    __tablename__ = 'siloed_data'
-
-    id = Column(Integer, primary_key=True)
-    data_id = Column(Integer, ForeignKey('data.id'))
-    silo = Column(Integer)
-
-    data = relationship(Data, backref='siloed_data')
-
-    @classmethod
-    def add_auth_filters(cls, query, badge):
-        return query.filter(cls.silo == badge)
-
-
 # test - auth query filters - one class, two class, single attributes
 class TestAuthBaseFilters:
     engine = create_engine('sqlite:///:memory:', echo=True)
@@ -52,7 +38,7 @@ class TestAuthBaseFilters:
     Session.configure(badge=ALLOW)
     session = Session()
 
-    session.add(Data(owner=1, data="A", siloed_data=[Siloed_Data(silo=x) for x in range(3)]))
+    session.add(Data(owner=1, data="A"))
     session.add(Data(owner=2, data="A"))
     session.add(Data(owner=2, data="B"))
     session.add(Data(owner=3, data="A"))
@@ -60,12 +46,6 @@ class TestAuthBaseFilters:
     session.add(Data(owner=3, data="C"))
 
     session.commit()
-
-    def test_implicit_siloed_data(self):
-        session = self.Session()
-        with session.switch_badge(1):
-            data = session.query(Data).filter(Data.owner == 1).one()
-            assert len(data.siloed_data) == 1
 
     def test_bypass(self):
         session = self.Session()
