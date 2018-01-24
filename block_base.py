@@ -25,7 +25,7 @@ class BlockBase(AuthBase):
 
         Only called if badge != ALLOW.
         """
-        return []
+        return self._blocked_read_attributes(badge)
 
     def get_blocked_read_attributes(self):
         if self._session.badge is not ALLOW:
@@ -48,7 +48,7 @@ class BlockBase(AuthBase):
     # make _session exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
     # We set it to simplify the logic in __getattribute__
-    class _session():
+    class _session:
         badge = ALLOW
     _checking_authorization = False
 
@@ -67,11 +67,11 @@ class BlockBase(AuthBase):
 
         # take action
         if name in blocked:
-            raise AuthException('{} may not access {} on {}'.format(self._session.badge, name, self.__class__))
+            raise AuthException(f"Read from '{name}' blocked for {self._session.badge} on {self}: {blocked}")
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
-        if name in self.get_blocked_write_attributes():
-            raise AuthException('{} may not access {} on {}'.format(self._session.badge, name, self.__class__))
+        blocked = self.get_blocked_write_attributes()
+        if name in blocked:
+            raise AuthException(f"Write to '{name}' blocked for {self._session.badge} on {self}: {blocked}")
         return super().__setattr__(name, value)
-
