@@ -5,8 +5,11 @@ class BlockBase(AuthBase):
     """
     BlockBase provides mechanisms for attribute blocking.
 
-    To block access, return blocked attributes in your own
-    _blocked_read_attributes or _blocked_write_attributes.
+    To block both read and write access, return blocked attributes in
+    your own _blocked_read_attributes. _blocked_write_attributes calls
+    it out of the box.
+
+    To additionally block write access, implement _blocked_write_attributes.
     """
 
     def _blocked_read_attributes(self, badge):
@@ -26,23 +29,35 @@ class BlockBase(AuthBase):
         """
         return self._blocked_read_attributes(badge)
 
-    def get_blocked_read_attributes(self):
+    def read_blocked_attrs(self):
+        """
+        :return: set of attrs that are not readable.
+        """
         if self._session.badge is ALLOW:
             return set()
         return set(self._blocked_read_attributes(self._session.badge))
 
-    def get_blocked_write_attributes(self):
+    def write_blocked_attrs(self):
+        """
+        :return: set of attrs that are not writable.
+        """
         if self._session.badge is ALLOW:
             return set()
         return set(self._blocked_write_attributes(self._session.badge))
 
-    def get_read_attributes(self):
+    def readable_attrs(self):
+        """
+        :return: set of attrs that are readable.
+        """
         attrs = {v for v in vars(self) if not v.startswith("_")}
-        return attrs - self.get_blocked_read_attributes()
+        return attrs - self.read_blocked_attrs()
 
-    def get_write_attributes(self):
+    def writable_attrs(self):
+        """
+        :return: set of attrs that are writable.
+        """
         attrs = {v for v in vars(self) if not v.startswith("_")}
-        return attrs - self.get_blocked_write_attributes()
+        return attrs - self.write_blocked_attrs()
 
     # make _session exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
@@ -52,8 +67,6 @@ class BlockBase(AuthBase):
     _checking_authorization = False
 
     def __getattribute__(self, name):
-        # __getattribute__ is called before __init__ by a SQLAlchemy decorator.
-
         # bypass our check if we're recursive
         # this allows _blocked_read_attributes to use self.*
         if super().__getattribute__("_checking_authorization"):
@@ -61,7 +74,7 @@ class BlockBase(AuthBase):
 
         # look up blocked attributes
         super().__setattr__("_checking_authorization", True)
-        blocked = self.get_blocked_read_attributes()
+        blocked = self.read_blocked_attrs()
         super().__setattr__("_checking_authorization", False)
 
         # take action
@@ -70,7 +83,7 @@ class BlockBase(AuthBase):
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
-        blocked = self.get_blocked_write_attributes()
+        blocked = self.write_blocked_attrs()
         if name in blocked:
             raise AuthException(f"Write to '{name}' blocked for {self._session.badge} on {self}: {blocked}")
         return super().__setattr__(name, value)

@@ -102,9 +102,8 @@ class AttributeCheck(Base):
 ```
 
 Four convenience methods are defined:
-`get_read_attributes()`, `get_blocked_read_attributes()` and
-`get_write_attributes()`, `get_blocked_write_attributes()`. Only public
-attributes are returned.
+`readable_attrs()`, `read_blocked_attrs()` and `writable_attrs()`,
+`write_blocked_attrs()`. Only public attributes are returned.
 
 Attribute blocking is only effective for instances of the mapped class.
 

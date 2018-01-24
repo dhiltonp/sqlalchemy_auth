@@ -123,21 +123,21 @@ class TestGetAttributes:
 
     def test_get_read_attributes(self):
         a = self.create_attribute_check()
-        attrs = a.get_read_attributes()
+        attrs = a.readable_attrs()
         assert len(attrs) == 3
         for v in ["id", "owner", "data"]:
             assert v in attrs
 
     def test_get_write_attributes(self):
         a = self.create_attribute_check()
-        attrs = a.get_write_attributes()
+        attrs = a.writable_attrs()
         assert len(attrs) == 2
         for v in ["data", "secret"]:
             assert v in attrs
 
     def test_get_blocked_read_attributes(self):
         a = self.create_attribute_check()
-        attrs = a.get_blocked_read_attributes()
+        attrs = a.read_blocked_attrs()
         assert len(attrs) == 1
         assert "secret" in attrs
 

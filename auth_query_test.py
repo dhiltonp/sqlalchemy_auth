@@ -31,7 +31,7 @@ class Data(Base):
 
 # test - auth query filters - one class, two class, single attributes
 class TestAuthBaseFilters:
-    engine = create_engine('sqlite:///:memory:', echo=True)
+    engine = create_engine('sqlite:///:memory:')#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
