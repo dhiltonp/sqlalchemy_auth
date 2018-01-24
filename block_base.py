@@ -3,7 +3,7 @@ from sqlalchemy_auth import AuthBase, ALLOW, AuthException
 
 class BlockBase(AuthBase):
     """
-    _AuthBase provides mechanisms for attribute blocking.
+    BlockBase provides mechanisms for attribute blocking.
 
     To block access, return blocked attributes in your own
     _blocked_read_attributes or _blocked_write_attributes.
@@ -11,43 +11,42 @@ class BlockBase(AuthBase):
 
     def _blocked_read_attributes(self, badge):
         """
-        Override this method to block read access to attributes, but use
-        the get_* methods for access.
+        Override _blocked_read_attributes to just block read attributes.
 
         Only called if badge != ALLOW.
         """
-        return []
+        return set()
 
     def _blocked_write_attributes(self, badge):
         """
-        Override this method to block write access to attributes, but use
-        the get_* methods for access.
+        Override _blocked_write_attributes to just block write attributes.
+        Defaults to _blocked_read_attributes.
 
         Only called if badge != ALLOW.
         """
         return self._blocked_read_attributes(badge)
 
     def get_blocked_read_attributes(self):
-        if self._session.badge is not ALLOW:
-            return self._blocked_read_attributes(self._session.badge)
-        return []
+        if self._session.badge is ALLOW:
+            return set()
+        return set(self._blocked_read_attributes(self._session.badge))
 
     def get_blocked_write_attributes(self):
-        if self._session.badge is not ALLOW:
-            return self._blocked_write_attributes(self._session.badge)
-        return []
+        if self._session.badge is ALLOW:
+            return set()
+        return set(self._blocked_write_attributes(self._session.badge))
 
     def get_read_attributes(self):
-        attrs = [v for v in vars(self) if not v.startswith("_")]
-        return set(attrs) - set(self.get_blocked_read_attributes())
+        attrs = {v for v in vars(self) if not v.startswith("_")}
+        return attrs - self.get_blocked_read_attributes()
 
     def get_write_attributes(self):
-        attrs = [v for v in vars(self) if not v.startswith("_")]
-        return set(attrs) - set(self.get_blocked_write_attributes())
+        attrs = {v for v in vars(self) if not v.startswith("_")}
+        return attrs - self.get_blocked_write_attributes()
 
     # make _session exist at all times.
     #  This matters because sqlalchemy does some magic before __init__ is called.
-    # We set it to simplify the logic in __getattribute__
+    # This simplifies the logic in __getattribute__
     class _session:
         badge = ALLOW
     _checking_authorization = False
