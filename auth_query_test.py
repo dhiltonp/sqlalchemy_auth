@@ -2,9 +2,9 @@ import pytest
 
 from sqlalchemy_auth import AuthSession, AuthQuery, AuthBase, AuthException, ALLOW, DENY
 
-from sqlalchemy import create_engine, ForeignKey, Table, literal
+from sqlalchemy import create_engine, ForeignKey, Table, literal, func, distinct
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, aliased
+from sqlalchemy.orm import sessionmaker, relationship, aliased, subqueryload
 from sqlalchemy import Column, Integer, String
 
 
@@ -182,7 +182,7 @@ class Company(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    badges = relationship("User")
+    users = relationship("User")
     sharedresources = relationship("SharedResource",
                                    secondary=company_resource_association,
                                    back_populates="companies")
@@ -193,12 +193,12 @@ class Company(Base):
 
 
 class User(Base):
-    __tablename__ = "badge"
+    __tablename__ = "user"
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
     company_id = Column(Integer, ForeignKey('company.id'))
-    company = relationship("Company", back_populates="badges")
+    company = relationship("Company", back_populates="users")
 
     @classmethod
     def add_auth_filters(cls, query, badge):
@@ -251,19 +251,19 @@ class TestInteractions:
 
     session.commit()
 
-    badge1a = session.query(User).filter(User.company_id == 1, User.name == "a").one()
-    badge2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
+    user1a = session.query(User).filter(User.company_id == 1, User.name == "a").one()
+    user2a = session.query(User).filter(User.company_id == 2, User.name == "a").one()
 
     def test_orthogonal_class(self):
         session = self.Session()
-        session.badge = self.badge1a
+        session.badge = self.user1a
         query = session.query(Widget).join(Company)
         assert itercount(query) == 2
 
     def test_aliased_class_in_from(self):
         session = self.Session()
 
-        session.badge = self.badge1a
+        session.badge = self.user1a
         employer = aliased(Company, name='employer')
         query = session.query(Widget, employer.name).join(employer)
 
@@ -278,7 +278,7 @@ class TestInteractions:
 
     def test_company_filter(self):
         session = self.Session()
-        session.badge = self.badge2a
+        session.badge = self.user2a
         query = session.query(User)
         assert itercount(query) == 2
         query = session.query(Company)
@@ -286,34 +286,39 @@ class TestInteractions:
 
     def test_join(self):
         session = self.Session()
-        session.badge = self.badge2a
+        session.badge = self.user2a
         query = session.query(User.name, Company.name)
         assert itercount(query) == 2
         query = session.query(Company.name, User.name)
         assert itercount(query) == 2
-        assert itercount(query.filter(User.name == self.badge2a.name)) == 1
+        assert itercount(query.filter(User.name == self.user2a.name)) == 1
 
     def test_distinct(self):
-        from sqlalchemy import distinct
         session = self.Session()
-        session.badge = self.badge2a
+        session.badge = self.user2a
         query = session.query(User.company_id)
         assert itercount(query) == 2
         query = session.query(distinct(User.company_id))
         assert itercount(query) == 1
 
     def test_max(self):
-        from sqlalchemy import func
         session = self.Session()
-        session.badge = self.badge2a
+        session.badge = self.user2a
         query = session.query(func.max(User.id))
         assert itercount(query) == 1
         assert 3 == query.one()[0]
 
     def test_relationships(self):
-        assert self.badge1a.company.id == 1
-        assert self.badge1a.company.badges[0] == self.badge1a
-        assert len(self.badge2a.company.badges) == 2
+        assert self.user1a.company.id == 1
+        assert self.user1a.company.users[0] == self.user1a
+        assert len(self.user2a.company.users) == 2
+
+    def test_subqueryload(self):
+        session = self.Session()
+        q = session.query(Company).options(subqueryload(Company.users))
+        assert q.count() == 3
+        for company in q:
+            assert len(company.users) == company.id
 
 
 class TestSharedResource:
@@ -330,10 +335,10 @@ class TestSharedResource:
     session.add(companyB)
     session.commit()
 
-    badgeA = User(name="a", company_id=companyA.id)
-    badgeB = User(name="a", company_id=companyB.id)
-    session.add(badgeA)
-    session.add(badgeB)
+    userA = User(name="a", company_id=companyA.id)
+    userB = User(name="a", company_id=companyB.id)
+    session.add(userA)
+    session.add(userB)
 
     resourceA = SharedResource(name="A")
     resourceA.companies.append(companyA)
@@ -346,7 +351,7 @@ class TestSharedResource:
     session.commit()
 
     def test_shared_resource(self):
-        self.Session.configure(badge=self.badgeA)
+        self.Session.configure(badge=self.userA)
         session = self.Session()
         companyA = session.query(Company).one()
         assert len(companyA.sharedresources) == 2

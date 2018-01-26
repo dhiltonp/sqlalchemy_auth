@@ -18,14 +18,15 @@ class AuthQuery(Query):
         self._auth_join_entities = set()
 
     def _compile_context(self, labels=True):
-        if hasattr(self, "_compile_context_guard") and self._compile_context_guard:
-            return self._compile_context_retval
+        if getattr(self, "_compile_context_guard", False):
+            raise RecursionError('Preview not supported while compiling query')
+
         self._compile_context_guard = True
         filtered = self._add_auth_filters()
-        self._compile_context_retval = super(AuthQuery, filtered)._compile_context(labels)
-
+        del filtered._compile_context_guard
         self._compile_context_guard = False
-        return self._compile_context_retval
+
+        return super(AuthQuery, filtered)._compile_context(labels)
 
     def _execute_and_instances(self, querycontext):
         # Required for BlockBase
