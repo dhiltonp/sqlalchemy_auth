@@ -152,22 +152,29 @@ class TestGetAttributes:
 
         return session.query(self.AttributeCheck).first()
 
-    def test_get_read_attributes(self):
+    def test_readable_attrs(self):
         a = self.create_attribute_check()
         attrs = a.readable_attrs()
         assert len(attrs) == 3
         for v in ["id", "owner", "data"]:
             assert v in attrs
 
-    def test_get_write_attributes(self):
+    def test_writable_attrs(self):
         a = self.create_attribute_check()
         attrs = a.writable_attrs()
         assert len(attrs) == 2
         for v in ["data", "secret"]:
             assert v in attrs
 
-    def test_get_blocked_read_attributes(self):
+    def test_read_blocked_attrs(self):
         a = self.create_attribute_check()
         attrs = a.read_blocked_attrs()
         assert len(attrs) == 1
         assert "secret" in attrs
+
+    def test_write_blocked_attrs(self):
+        a = self.create_attribute_check()
+        attrs = a.write_blocked_attrs()
+        assert len(attrs) == 2
+        for v in ["id", "owner"]:
+            assert v in attrs

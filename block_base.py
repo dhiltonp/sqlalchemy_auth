@@ -81,14 +81,14 @@ class BlockBase(AuthBase):
 
         # take action
         if name in blocked:
-            with self._session.switch_badge():  # so self can be used the in exception message
+            with self._session.switch_badge():  # so self can be used in the exception message
                 raise AuthException(f"Read from '{name}' blocked for {self._session.badge} on {self}: {blocked}")
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
         blocked = self.write_blocked_attrs()
         if name in blocked:
-            with self._session.switch_badge():  # so self can be used the in exception message
+            with self._session.switch_badge():  # so self can be used in the exception message
                 raise AuthException(f"Write to '{name}' blocked for {self._session.badge} on {self}: {blocked}")
         return super().__setattr__(name, value)
 
