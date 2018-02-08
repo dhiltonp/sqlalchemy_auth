@@ -109,7 +109,7 @@ Attribute blocking is only effective for instances of the mapped class.
 
 # Gotchas
 
-### One User per Session/Query/Objects Group
+### One Badge per Session/Query/Objects Group
 
 Only one badge exists between a session, its queries and returned objects.
 For example:
