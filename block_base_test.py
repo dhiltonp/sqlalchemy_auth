@@ -55,7 +55,7 @@ class TestAuthBaseAttributes:
             return ["blocked_write", "blocked_both"]
 
     def create_blocked_data(self):
-        engine = create_engine('sqlite:///:memory:')#, echo=True)
+        engine = create_engine("sqlite:///:memory:")#, echo=True)
         self.Base.metadata.create_all(engine)
 
         Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
@@ -139,7 +139,7 @@ class TestGetAttributes:
             return ["id", "owner"]
 
     def create_attribute_check(self):
-        engine = create_engine('sqlite:///:memory:')#, echo=True)
+        engine = create_engine("sqlite:///:memory:")#, echo=True)
         self.Base.metadata.create_all(engine)
 
         Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)

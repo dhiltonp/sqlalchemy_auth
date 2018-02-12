@@ -93,6 +93,6 @@ class BlockBase(AuthBase):
         return super().__setattr__(name, value)
 
     def _bypass_block(self):
-        return not hasattr(self._session, 'transaction') \
+        return not hasattr(self._session, "transaction") \
             or self._session.transaction._state is not ACTIVE \
             or self._session.badge is ALLOW

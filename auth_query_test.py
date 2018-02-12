@@ -18,7 +18,7 @@ def itercount(query):
 
 
 class Data(Base):
-    __tablename__ = 'data'
+    __tablename__ = "data"
 
     id = Column(Integer, primary_key=True)
     owner = Column(Integer)
@@ -31,7 +31,7 @@ class Data(Base):
 
 # test - auth query filters - one class, two class, single attributes
 class TestAuthBaseFilters:
-    engine = create_engine('sqlite:///:memory:')#, echo=True)
+    engine = create_engine("sqlite:///:memory:")#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
@@ -172,9 +172,9 @@ class TestAuthBaseFilters:
             assert count2 == i
 
 
-company_resource_association = Table('company_resource_association', Base.metadata,
-                                     Column('company_id', Integer, ForeignKey('company.id')),
-                                     Column('resource_id', Integer, ForeignKey('sharedresource.id')))
+company_resource_association = Table("company_resource_association", Base.metadata,
+                                     Column("company_id", Integer, ForeignKey("company.id")),
+                                     Column("resource_id", Integer, ForeignKey("sharedresource.id")))
 
 
 class Company(Base):
@@ -197,7 +197,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    company_id = Column(Integer, ForeignKey('company.id'))
+    company_id = Column(Integer, ForeignKey("company.id"))
     company = relationship("Company", back_populates="users")
 
     @classmethod
@@ -220,13 +220,13 @@ class Widget(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    company_id = Column(Integer, ForeignKey('company.id'))
+    company_id = Column(Integer, ForeignKey("company.id"))
     company = relationship("Company", backref="widgets")
 
 
 # test - auth query filters - one class, two class, join, single attributes
 class TestInteractions:
-    engine = create_engine('sqlite:///:memory:')#, echo=True)
+    engine = create_engine("sqlite:///:memory:")#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
@@ -264,7 +264,7 @@ class TestInteractions:
         session = self.Session()
 
         session.badge = self.user1a
-        employer = aliased(Company, name='employer')
+        employer = aliased(Company, name="employer")
         query = session.query(Widget, employer.name).join(employer)
 
         assert itercount(query) == 2
@@ -322,7 +322,7 @@ class TestInteractions:
 
 
 class TestSharedResource:
-    engine = create_engine('sqlite:///:memory:')#, echo=True)
+    engine = create_engine("sqlite:///:memory:")#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
@@ -375,7 +375,7 @@ class InsertData(Base):
 
 # test - auth query inserts
 class TestAuthBaseInserts:
-    engine = create_engine('sqlite:///:memory:')#, echo=True)
+    engine = create_engine("sqlite:///:memory:")#, echo=True)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
