@@ -2,9 +2,9 @@
 
 sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
 
-It is easy to use, and easy to bypass. 
+It is easy to use, and easy to bypass when needed.
 
-1. You set a `badge` on a session, and receive a `badge` within a query.
+1. You set a `badge` on a session, which is passed to various handlers.
 2. All mapped classes can add implicit filters on queries and implicit data on inserts.
 3. All mapped classes can selectively block attribute access.
 
@@ -21,8 +21,9 @@ Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery, bad
 session = Session()
 ```
 
-By default you don't need no stinking `badge`. It is set to `ALLOW`, bypassing all auth mechanisms. Change `badge`
-from `ALLOW` to enable authorization:
+By default you don't need no stinking `badge`. It is set to `ALLOW`, bypassing all auth
+mechanisms (the default is overridden above). Change `badge` from `ALLOW` to enable
+authorization:
 
 ```python
 session.badge=badge
@@ -36,7 +37,7 @@ with session.switch_badge(badge):
 ```
 
 `badge` can be anything (the current user, their role, etc.), and will be passed in to 
-`add_auth_filters` or `add_auth_insert_data` (unless it's `ALLOW` or `DENY`).
+`add_auth_filters` and `add_auth_insert_data` (unless it's `ALLOW` or `DENY`).
 
 ### Filters
 
@@ -57,7 +58,7 @@ class Data(Base):
 
 ### Inserts
 
-To add data on insert, define `add_auth_insert_data`
+To add data on insert, define `add_auth_insert_data`:
 
 ```python
 class Data(Base):
@@ -98,12 +99,32 @@ class AttributeCheck(Base):
         return ["secret"]
 
     def _blocked_write_attributes(self, badge):
-        return ["id", "owner"]
+        blocked = ["id", "owner"]
+        if self.owner != badge.user_id:
+            blocked.append("data")
+        return blocked
 ```
 
+These methods are only called if badge != `ALLOW` and you are within a transaction.
+By default, `_blocked_write_attributes` calls `_blocked_read_attributes`.
+
 Four convenience methods are defined:
-`readable_attrs()`, `read_blocked_attrs()` and `writable_attrs()`,
-`write_blocked_attrs()`. Only public attributes are returned.
+
+`readable_attrs()`, `read_blocked_attrs()`, `writable_attrs()` and `write_blocked_attrs()`
+
+Here are some examples of attribute blocking:
+
+```python
+a = session.query(AttributeCheck).one()
+
+if "secret" in a.readable_attrs():
+    display_secret(a)
+
+try:
+    a.data = "value"
+except AuthException:
+    raise
+```
 
 Attribute blocking is only effective for instances of the mapped class.
 
@@ -131,8 +152,8 @@ query later would return a `filtered` subset.
 To support `scoped_session.query` style syntax with `badge` and `switch_badge`, you must run
 `instrument_scoped_session` on the value returned by `sqlalchemy.orm.scoped_session()`.
 
-If you do not, setting `badge` will have no effect and calling `switch_badge` will raise `AttributeError: 'scoped_session' object has
-no attribute 'switch_badge'`.
+If you do not, setting `badge` will have no effect and calling `switch_badge` will raise
+`AttributeError: 'scoped_session' object has no attribute 'switch_badge'`.
 
 ### Attribute Blocking Limitations
 

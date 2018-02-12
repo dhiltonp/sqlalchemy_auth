@@ -3,6 +3,19 @@ from sqlalchemy.orm.session import ACTIVE
 from sqlalchemy_auth import AuthBase, ALLOW, AuthException
 
 
+def _authcheck(func):
+    def wrapper(self, *args, **kwargs):
+        self._checking_authorization = True
+        if self._bypass_block():
+            result = set()
+        else:
+            result = func(self, *args, **kwargs)
+        self._checking_authorization = False
+
+        return result
+    return wrapper
+
+
 class BlockBase(AuthBase):
     """
     BlockBase provides mechanisms for attribute blocking.
@@ -31,20 +44,18 @@ class BlockBase(AuthBase):
         """
         return self._blocked_read_attributes(badge)
 
+    @_authcheck
     def read_blocked_attrs(self):
         """
         :return: set of attrs that are not readable.
         """
-        if self._bypass_block():
-            return set()
         return set(self._blocked_read_attributes(self._session.badge))
 
+    @_authcheck
     def write_blocked_attrs(self):
         """
         :return: set of attrs that are not writable.
         """
-        if self._bypass_block():
-            return set()
         return set(self._blocked_write_attributes(self._session.badge))
 
     def readable_attrs(self):
@@ -66,20 +77,17 @@ class BlockBase(AuthBase):
     # This simplifies the logic in __getattribute__
     class _session:
         badge = ALLOW
+
+    # _checking_authorization is always readable/writable
     _checking_authorization = False
 
     def __getattribute__(self, name):
-        # bypass our check if we're recursive
+        # bypass blocking if we're checking attributes
         # this allows _blocked_read_attributes to use self.*
-        if super().__getattribute__("_checking_authorization"):
+        if super().__getattribute__("_checking_authorization") or name == "read_blocked_attrs":
             return super().__getattribute__(name)
 
-        # look up blocked attributes
-        super().__setattr__("_checking_authorization", True)
         blocked = self.read_blocked_attrs()
-        super().__setattr__("_checking_authorization", False)
-
-        # take action
         if name in blocked:
             with self._session.switch_badge():  # so self can be used in the exception message
                 raise AuthException("Read from '{name}' blocked for {badge} on {self}: {blocked}".
@@ -87,6 +95,9 @@ class BlockBase(AuthBase):
         return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
+        if name == "_checking_authorization":
+            return super().__setattr__(name, value)
+
         blocked = self.write_blocked_attrs()
         if name in blocked:
             with self._session.switch_badge():  # so self can be used in the exception message

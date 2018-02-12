@@ -56,7 +56,7 @@ class TestAuthBaseAttributes:
 
     def create_blocked_data(self):
         engine = create_engine("sqlite:///:memory:")#, echo=True)
-        self.Base.metadata.create_all(engine)
+        self.BlockedData.__table__.create(bind=engine)
 
         Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
         Session.configure(badge=ALLOW)
@@ -140,7 +140,7 @@ class TestGetAttributes:
 
     def create_attribute_check(self):
         engine = create_engine("sqlite:///:memory:")#, echo=True)
-        self.Base.metadata.create_all(engine)
+        self.AttributeCheck.__table__.create(bind=engine)
 
         Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
         Session.configure(badge=1)
@@ -178,3 +178,36 @@ class TestGetAttributes:
         assert len(attrs) == 2
         for v in ["id", "owner"]:
             assert v in attrs
+
+
+def test_read_in_blocked_methods():
+    Base = declarative_base(cls=BlockBase)
+
+    class AllowedCheck(Base):
+        __tablename__ = "allowedcheck"
+
+        id = Column(Integer, primary_key=True)
+        blocked_read = Column(String)
+
+        def _blocked_read_attributes(self, badge):
+            self.blocked_read
+            return ["blocked_read"]
+
+        def _blocked_write_attributes(self, badge):
+            self.blocked_read
+            return []
+
+    engine = create_engine("sqlite:///:memory:")#, echo=True)
+    AllowedCheck.__table__.create(bind=engine)
+
+    Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
+    Session.configure(badge=1)
+    session = Session()
+
+    session.add(AllowedCheck(blocked_read="bicycle"))
+    session.commit()
+    a = session.query(AllowedCheck).first()
+
+    # actual test
+    attrs = a.write_blocked_attrs()
+    attrs = a.read_blocked_attrs()

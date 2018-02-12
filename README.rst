@@ -4,10 +4,10 @@ Overview
 sqlalchemy\_auth provides authorization mechanisms for SQLAlchemy DB
 access.
 
-It is easy to use, and easy to bypass.
+It is easy to use, and easy to bypass when needed.
 
-1. You set a ``badge`` on a session, and receive a ``badge`` within a
-   query.
+1. You set a ``badge`` on a session, which is passed to various
+   handlers.
 2. All mapped classes can add implicit filters on queries and implicit
    data on inserts.
 3. All mapped classes can selectively block attribute access.
@@ -29,8 +29,8 @@ Create a session using the AuthSession and AuthQuery classes:
     session = Session()
 
 By default you don't need no stinking ``badge``. It is set to ``ALLOW``,
-bypassing all auth mechanisms. Change ``badge`` from ``ALLOW`` to enable
-authorization:
+bypassing all auth mechanisms (the default is overridden above). Change
+``badge`` from ``ALLOW`` to enable authorization:
 
 .. code:: python
 
@@ -44,8 +44,8 @@ Temporarily switch ``badge``:
         ...
 
 ``badge`` can be anything (the current user, their role, etc.), and will
-be passed in to ``add_auth_filters`` or ``add_auth_insert_data`` (unless
-it's ``ALLOW`` or ``DENY``).
+be passed in to ``add_auth_filters`` and ``add_auth_insert_data``
+(unless it's ``ALLOW`` or ``DENY``).
 
 Filters
 ~~~~~~~
@@ -68,7 +68,7 @@ To add filters, define ``add_auth_filters``:
 Inserts
 ~~~~~~~
 
-To add data on insert, define ``add_auth_insert_data``
+To add data on insert, define ``add_auth_insert_data``:
 
 .. code:: python
 
@@ -112,11 +112,33 @@ use mixins instead of ``declarative_base(cls=BlockBase)``):
             return ["secret"]
 
         def _blocked_write_attributes(self, badge):
-            return ["id", "owner"]
+            blocked = ["id", "owner"]
+            if self.owner != badge.user_id:
+                blocked.append("data")
+            return blocked
 
-Four convenience methods are defined: ``readable_attrs()``,
-``read_blocked_attrs()`` and ``writable_attrs()``,
-``write_blocked_attrs()``. Only public attributes are returned.
+These methods are only called if badge != ``ALLOW`` and you are within a
+transaction. By default, ``_blocked_write_attributes`` calls
+``_blocked_read_attributes``.
+
+Four convenience methods are defined:
+
+``readable_attrs()``, ``read_blocked_attrs()``, ``writable_attrs()`` and
+``write_blocked_attrs()``
+
+Here are some examples of attribute blocking:
+
+.. code:: python
+
+    a = session.query(AttributeCheck).one()
+
+    if "secret" in a.readable_attrs():
+        display_secret(a)
+
+    try:
+        a.data = "value"
+    except AuthException:
+        raise
 
 Attribute blocking is only effective for instances of the mapped class.
 
