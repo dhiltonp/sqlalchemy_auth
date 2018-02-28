@@ -200,6 +200,17 @@ Similarly, `update` bypasses attribute blocks:
 query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
 ```
 
+### BakedQuery Limitation
+
+BakedQueries will execute, but will not be cached.
+
+sqlalchemy_auth hooks sqlalchemy *after* BakedQueries are looked up,
+so baking would only run add_auth_filters once.
+
+Any add_auth_filter that conditionally filtered would be broken.
+Even with that, ALLOW applies conditional filters, so any query sometimes
+executed under ALLOW would be broken.
+
 
 ### Debugger Limitation
 

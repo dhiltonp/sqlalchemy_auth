@@ -163,6 +163,29 @@ objects. For example:
 In this example, ``unfiltered`` will contain all Data objects, but the
 same query later would return a ``filtered`` subset.
 
+Mixed Permissions of Objects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Relationships may be loaded with a different badge from their
+parent/child.
+
+.. code:: python
+
+    session.badge = badge
+    shared_data = session.query(Data).first()
+
+    session.badge = ALLOW
+    shared_data.owners
+
+    session.badge = badge
+    shared_data.owners
+
+In the above example, ``shared_data`` is filtered when it is loaded.
+
+The ``owners`` relationship is loaded without filtering. Changing
+``badge`` does not invalidate or reload ``owners``; it will persist and
+not be filtered.
+
 Scoped Session Usage
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -191,6 +214,27 @@ Similarly, ``update`` bypasses attribute blocks:
 .. code:: python
 
     query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
+
+BakedQuery Limitation
+~~~~~~~~~~~~~~~~~~~~~
+
+BakedQueries will execute, but will not be cached.
+
+sqlalchemy\_auth hooks sqlalchemy *after* BakedQueries are looked up, so
+baking would only run add\_auth\_filters once.
+
+Any add\_auth\_filter that conditionally filtered would be broken. Even
+with that, ALLOW applies conditional filters, so any query sometimes
+executed under ALLOW would be broken.
+
+Debugger Limitation
+~~~~~~~~~~~~~~~~~~~
+
+If you have cloned sqlalchemy\_auth for development, you will find that
+debugging does not work. This is because coverage is enabled for command
+line tests.
+
+To get around this, pass ``--no-cov`` as a parameter when debugging.
 
 --------------
 

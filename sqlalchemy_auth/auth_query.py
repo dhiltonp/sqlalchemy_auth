@@ -20,6 +20,7 @@ class AuthQuery(Query):
     def _compile_context(self, labels=True):
         if getattr(self, "_compile_context_guard", False):
             raise RecursionError("Preview not supported while compiling query")
+        self.session._assert_no_baked_queries()
 
         self._compile_context_guard = True
         filtered = self._add_auth_filters()
