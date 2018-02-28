@@ -171,6 +171,13 @@ Similarly, `update` bypasses attribute blocks:
 query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
 ```
 
+### Debugger Limitation
+
+If you have cloned sqlalchemy_auth for development, you will find that debugging
+does not work. This is because coverage is enabled for command line tests.
+
+To get around this, pass `--no-cov` as a parameter when debugging.
+
 --------------------------
 
 See auth_query_test.py for end-to-end examples.
