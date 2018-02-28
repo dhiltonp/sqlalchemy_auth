@@ -322,37 +322,44 @@ class TestInteractions:
 
 
 class TestSharedResource:
-    engine = create_engine("sqlite:///:memory:")#, echo=True)
-    Base.metadata.create_all(engine)
+    def populate_db(self):
+        engine = create_engine("sqlite:///:memory:")#, echo=True)
+        Base.metadata.create_all(engine)
 
-    Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
-    Session.configure(badge=ALLOW)
-    session = Session()
+        #enable_baked_queries=False,
+        Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
+        Session.configure(badge=ALLOW)
+        session = Session()
 
-    companyA = Company(name="A")
-    companyB = Company(name="B")
-    session.add(companyA)
-    session.add(companyB)
-    session.commit()
+        companyA = Company(name="A")
+        companyB = Company(name="B")
+        session.add(companyA)
+        session.add(companyB)
+        session.commit()
 
-    userA = User(name="a", company_id=companyA.id)
-    userB = User(name="a", company_id=companyB.id)
-    session.add(userA)
-    session.add(userB)
+        userA = User(name="a", company_id=companyA.id)
+        userB = User(name="b", company_id=companyB.id)
+        session.add(userA)
+        session.add(userB)
 
-    resourceA = SharedResource(name="A")
-    resourceA.companies.append(companyA)
-    resourceB = SharedResource(name="B")
-    resourceB.companies.append(companyB)
-    resourceAB = SharedResource(name="AB")
-    resourceAB.companies.append(companyA)
-    resourceAB.companies.append(companyB)
+        resourceA = SharedResource(name="A")
+        resourceA.companies.append(companyA)
+        resourceB = SharedResource(name="B")
+        resourceB.companies.append(companyB)
+        resourceAB = SharedResource(name="AB")
+        resourceAB.companies.append(companyA)
+        resourceAB.companies.append(companyB)
 
-    session.commit()
+        session.commit()
+
+        return Session()
 
     def test_shared_resource(self):
-        self.Session.configure(badge=self.userA)
-        session = self.Session()
+        session = self.populate_db()
+
+        userA = session.query(User).filter_by(name="a").one()
+        session.badge = userA
+
         companyA = session.query(Company).one()
         assert len(companyA.sharedresources) == 2
         assert itercount(session.query(SharedResource)) == 3
@@ -360,6 +367,21 @@ class TestSharedResource:
         assert len(resourceB.companies) == 0
         resourceAB = session.query(SharedResource).filter_by(name="AB").one()
         assert len(resourceAB.companies) == 1
+
+    def test_baked_relationship_query(self):
+        # if these queries are baked, filtering is broken.
+        session = self.populate_db()
+
+        userA = session.query(User).filter_by(name="a").one()
+
+        session.badge = userA
+        resourceAB = session.query(SharedResource).filter_by(name="AB").one()
+        assert len(resourceAB.companies) == 1
+
+        session.badge = ALLOW
+        session.expunge_all()
+        resourceAB = session.query(SharedResource).filter_by(name="AB").one()
+        assert len(resourceAB.companies) == 2
 
 
 class InsertData(Base):
@@ -409,3 +431,15 @@ class TestAuthBaseInserts:
             session.commit()
             assert obj.data == "Non-owner Update"
             assert obj.owner == 10
+
+
+def test_disallow_baked_queries():
+    engine = create_engine("sqlite:///:memory:")#, echo=True)
+    User.__table__.create(bind=engine)
+    Session = sessionmaker(bind=engine, class_=AuthSession, query_cls=AuthQuery)
+
+    session = Session()
+
+    with pytest.raises(AuthException):
+        session.enable_baked_queries = True
+        session.query(User).all()

@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from sqlalchemy_auth import AuthSession, AuthQuery, ALLOW, instrument_scoped_session
+from sqlalchemy_auth import AuthSession, AuthQuery, ALLOW, instrument_scoped_session, AuthException
 from sqlalchemy_auth.auth_session import _BadgeContext
 
 
@@ -45,3 +45,17 @@ class TestScopedSessionSU:
         instrument_scoped_session(scoped_session)
         session.switch_badge(None)
         assert session.badge == None
+
+class TestBakedQueries:
+    def test_override_raises(self):
+        with pytest.raises(AuthException):
+            AuthSession(enable_baked_queries=True)
+
+    def test_double_disable(self):
+        # AuthSession disables enable_baked_queries, make it not matter if the
+        #  user also sets it to False.
+        session = AuthSession(enable_baked_queries=False)
+
+    def test_default_false(self):
+        session = AuthSession()
+        assert session.enable_baked_queries == False
