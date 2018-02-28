@@ -10,6 +10,7 @@ It is easy to use, and easy to bypass when needed.
 
 Your `badge` is shared between all queries and mapped class instances within a session.
 
+
 # Getting Started
 
 ### Session
@@ -39,6 +40,7 @@ with session.switch_badge(badge):
 `badge` can be anything (the current user, their role, etc.), and will be passed in to 
 `add_auth_filters` and `add_auth_insert_data` (unless it's `ALLOW` or `DENY`).
 
+
 ### Filters
 
 To add filters, define `add_auth_filters`:
@@ -56,6 +58,7 @@ class Data(Base):
         return query.filter_by(owner=badge.user_id)
 ```
 
+
 ### Inserts
 
 To add data on insert, define `add_auth_insert_data`:
@@ -72,10 +75,12 @@ class Data(Base):
         self.owner = badge.user_id
 ```
 
+
 ### Default Filters and Inserts
 
 If your `Base` inherits from `AuthBase`, you will inherit no-op `add_auth_filters` 
 and `add_auth_insert_data` methods.
+
 
 ### Attribute Blocking
 
@@ -128,6 +133,7 @@ except AuthException:
 
 Attribute blocking is only effective for instances of the mapped class.
 
+
 # Gotchas
 
 ### One Badge per Session/Query/Objects Group
@@ -147,6 +153,28 @@ filtered = query.all()
 In this example, `unfiltered` will contain all Data objects, but the same 
 query later would return a `filtered` subset.
 
+
+### Mixed Permissions of Objects
+
+Relationships may be loaded with a different badge from their parent/child.
+
+```python
+session.badge = badge
+shared_data = session.query(Data).first()
+
+session.badge = ALLOW
+shared_data.owners
+
+session.badge = badge
+shared_data.owners
+```
+
+In the above example, `shared_data` is filtered when it is loaded.
+
+The `owners` relationship is loaded without filtering. Changing `badge`
+does not invalidate or reload `owners`; it will persist and not be filtered.
+
+
 ### Scoped Session Usage
 
 To support `scoped_session.query` style syntax with `badge` and `switch_badge`, you must run
@@ -154,6 +182,7 @@ To support `scoped_session.query` style syntax with `badge` and `switch_badge`, 
 
 If you do not, setting `badge` will have no effect and calling `switch_badge` will raise
 `AttributeError: 'scoped_session' object has no attribute 'switch_badge'`.
+
 
 ### Attribute Blocking Limitations
 
@@ -170,6 +199,7 @@ Similarly, `update` bypasses attribute blocks:
 ```python
 query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
 ```
+
 
 ### Debugger Limitation
 
