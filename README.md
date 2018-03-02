@@ -200,24 +200,15 @@ Similarly, `update` bypasses attribute blocks:
 query = session.query(Class.blocked).update({Class.blocked: "unchecked write"})
 ```
 
-### BakedQuery Limitation
+### BakedQueries not Cached
 
-BakedQueries will execute, but will not be cached.
+BakedQuery will correctly execute, but will not be baked/cached.
 
-sqlalchemy_auth hooks sqlalchemy *after* BakedQueries are looked up,
-so baking would only run add_auth_filters once.
+sqlalchemy_auth hooks sqlalchemy's compilation, which only occurs once per
+BakedQuery. The query would be baked with one badge, forever.
 
-Any add_auth_filter that conditionally filtered would be broken.
-Even with that, ALLOW applies conditional filters, so any query sometimes
-executed under ALLOW would be broken.
+This would include relationship queries.
 
-
-### Debugger Limitation
-
-If you have cloned sqlalchemy_auth for development, you will find that debugging
-does not work. This is because coverage is enabled for command line tests.
-
-To get around this, pass `--no-cov` as a parameter when debugging.
 
 --------------------------
 
