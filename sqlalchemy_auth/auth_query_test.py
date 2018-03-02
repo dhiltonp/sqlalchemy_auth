@@ -379,7 +379,7 @@ class TestSharedResource:
         assert len(resourceAB.companies) == 1
 
         session.badge = ALLOW
-        session.expunge_all()
+        session.expunge(resourceAB)
         resourceAB = session.query(SharedResource).filter_by(name="AB").one()
         assert len(resourceAB.companies) == 2
 

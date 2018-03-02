@@ -169,10 +169,12 @@ session.badge = badge
 shared_data.owners
 ```
 
-In the above example, `shared_data` is filtered when it is loaded.
+In the above example the `owners` relationship is loaded without filtering.
+Changing `badge` does not invalidate or reload `owners`; it will persist and
+not be filtered.
 
-The `owners` relationship is loaded without filtering. Changing `badge`
-does not invalidate or reload `owners`; it will persist and not be filtered.
+`session.expunge_all()` will invalidate all objects, so all objects will be
+re-filtered. `session.expunge(shared_data)` would also work above.
 
 
 ### Scoped Session Usage
