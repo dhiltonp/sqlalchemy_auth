@@ -1,3 +1,5 @@
+NOTE: This code was written to work with SQLAlchemy 1.3. [Custom overriding of all where clauses is now natively supported in SQLAlchemy 1.4](https://docs.sqlalchemy.org/en/14/orm/session_events.html#adding-global-where-on-criteria). It does not have a 1-1 feature parity with this code - specifically, passing a badge and blocking individual attributes aren't part of that feature. This code could be updated to SQLAlchemy 1.4, but I'm not using it at this time; PRs welcome.
+
 # Overview
 
 sqlalchemy_auth provides authorization mechanisms for SQLAlchemy DB access.
